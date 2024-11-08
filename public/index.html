@@ -28,13 +28,15 @@
     
     let localStream;
     let peerConnection;
-    
-    // Get user media (local camera stream)
+    let isSharingStream = false; // Flag to indicate if the user is sharing their local stream
+
+    // Get user media (local camera stream) if the user is sharing
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
         localStream = stream;
         localVideo.srcObject = stream;
         console.log('Local stream started');
+        isSharingStream = true; // User is sharing their stream
         setupWebRTC();
       })
       .catch(err => {
@@ -49,12 +51,14 @@
       peerConnection = new RTCPeerConnection();
       console.log('PeerConnection created');
       
-      // Add local stream to the peer connection
-      localStream.getTracks().forEach(track => {
-        console.log('Adding track to peer connection:', track);
-        peerConnection.addTrack(track, localStream);
-      });
-      
+      // If user is sharing, add their stream to the connection
+      if (isSharingStream) {
+        localStream.getTracks().forEach(track => {
+          console.log('Adding track to peer connection:', track);
+          peerConnection.addTrack(track, localStream);
+        });
+      }
+
       // Listen for remote stream
       peerConnection.ontrack = event => {
         console.log('Received remote stream:', event);
@@ -69,19 +73,21 @@
         }
       };
       
-      // Create offer
-      peerConnection.createOffer()
-        .then(offer => {
-          console.log('Created offer:', offer);
-          return peerConnection.setLocalDescription(offer);
-        })
-        .then(() => {
-          console.log('Sending offer to signaling server');
-          socket.emit('offer', peerConnection.localDescription);
-        })
-        .catch(err => {
-          console.error('Error creating offer:', err);
-        });
+      // Create offer if the user is sharing their stream
+      if (isSharingStream) {
+        peerConnection.createOffer()
+          .then(offer => {
+            console.log('Created offer:', offer);
+            return peerConnection.setLocalDescription(offer);
+          })
+          .then(() => {
+            console.log('Sending offer to signaling server');
+            socket.emit('offer', peerConnection.localDescription);
+          })
+          .catch(err => {
+            console.error('Error creating offer:', err);
+          });
+      }
     }
 
     // Handle offer from another client (mobile)
