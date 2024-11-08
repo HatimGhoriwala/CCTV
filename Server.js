@@ -11,8 +11,12 @@ app.use(express.static('public')); // Serve static files
 io.on('connection', socket => {
   console.log('User connected:', socket.id);
 
-  // Notify existing users of the new user
-  socket.broadcast.emit('newUser', socket.id);
+  // Join Room
+  socket.on('joinRoom', () => {
+    console.log('User joined room:', socket.id);
+    // Notify other users about the new user
+    socket.broadcast.emit('newUser', socket.id);
+  });
 
   // Relay offers, answers, and ICE candidates
   socket.on('offer', (userId, description) => {
