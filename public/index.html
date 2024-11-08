@@ -40,6 +40,7 @@
       .catch(err => {
         console.error('Error accessing camera: ', err);
         alert('Error accessing camera. Make sure the browser has camera permissions.');
+        setupWebRTC();
       });
     
     // WebRTC setup
@@ -50,10 +51,13 @@
       console.log('PeerConnection created');
       
       // Add local stream to the peer connection (this will send your video)
-      localStream.getTracks().forEach(track => {
+      if(localStream){
+        localStream.getTracks().forEach(track => {
         console.log('Adding track to peer connection:', track);
         peerConnection.addTrack(track, localStream);
       });
+      }
+      
       
       // Listen for remote stream (your friend’s video will be displayed here)
       peerConnection.ontrack = event => {
