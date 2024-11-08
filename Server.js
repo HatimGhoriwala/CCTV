@@ -8,6 +8,7 @@ const io = socketIo(server);
 
 let broadcaster;
 
+app.use(express.static('public'));
 io.on('connection', socket => {
   socket.on('broadcaster', () => {
     broadcaster = socket.id;
