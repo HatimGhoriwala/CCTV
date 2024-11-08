@@ -39,6 +39,7 @@
       .catch(err => {
         console.error('Error accessing camera:', err);
         alert('Error accessing camera. Make sure the browser has camera permissions.');
+        socket.emit('joinRoom');
       });
 
     // Handle a new user joining
@@ -74,9 +75,12 @@
       peerConnections[userId] = peerConnection;
 
       // Add local stream to the peer connection
-      localStream.getTracks().forEach(track => {
+      if(localStream){
+        localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
       });
+      }
+      
 
       // Handle the incoming remote stream and add it to the DOM
       peerConnection.ontrack = event => {
