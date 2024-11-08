@@ -9,117 +9,107 @@
       width: 45%;
       margin: 10px;
     }
-    #remoteVideos {
+    #remoteVideoContainer {
       display: flex;
       flex-wrap: wrap;
     }
   </style>
 </head>
 <body>
-  <h2>Multi-User Video Stream</h2>
-  <video id="localVideo" autoplay muted></video> <!-- Local video -->
-  <div id="remoteVideos"></div> <!-- Container for remote videos -->
-  
+  <h2>Live Video Stream</h2>
+  <video id="localVideo" autoplay muted></video> <!-- Local broadcaster video -->
+  <div id="remoteVideoContainer"></div> <!-- Container for multiple viewers' video streams -->
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
     const localVideo = document.getElementById('localVideo');
-    const remoteVideos = document.getElementById('remoteVideos');
-    
+    const remoteVideoContainer = document.getElementById('remoteVideoContainer');
+
     let localStream;
-    const peerConnections = {}; // Stores peer connections with each participant's ID as the key
+    let isBroadcaster = false;
+    let peerConnections = {}; // Store each viewer's peer connection
 
-    // Get local media stream
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        localStream = stream;
-        localVideo.srcObject = stream;
-        socket.emit('joinRoom'); // Join a room on the server to signal that we're ready
-      })
-      .catch(err => {
-        console.error('Error accessing camera:', err);
-        alert('Error accessing camera. Make sure the browser has camera permissions.');
-        socket.emit('joinRoom');
-      });
-
-    // Handle a new user joining
-    socket.on('newUser', userId => {
-      console.log(`New user joined: ${userId}`);
-      createPeerConnection(userId, true); // Create a peer connection for the new user
-    });
-
-    // Handle an incoming offer from a new user
-    socket.on('offer', (userId, offer) => {
-      createPeerConnection(userId, false);
-      peerConnections[userId].setRemoteDescription(new RTCSessionDescription(offer))
-        .then(() => peerConnections[userId].createAnswer())
-        .then(answer => peerConnections[userId].setLocalDescription(answer))
-        .then(() => {
-          socket.emit('answer', userId, peerConnections[userId].localDescription);
-        });
-    });
-
-    // Handle an incoming answer from a user
-    socket.on('answer', (userId, answer) => {
-      peerConnections[userId].setRemoteDescription(new RTCSessionDescription(answer));
-    });
-
-    // Handle ICE candidates received from another user
-    socket.on('icecandidate', (userId, candidate) => {
-      peerConnections[userId].addIceCandidate(new RTCIceCandidate(candidate));
-    });
-
-    // Function to create a peer connection for each user
-    function createPeerConnection(userId, isInitiator) {
-      const peerConnection = new RTCPeerConnection();
-      peerConnections[userId] = peerConnection;
-
-      // Add local stream to the peer connection
-      if(localStream){
-        localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
-      }
-      
-
-      // Handle the incoming remote stream and add it to the DOM
-      peerConnection.ontrack = event => {
-        let remoteVideo = document.getElementById(`video-${userId}`);
-        if (!remoteVideo) {
-          remoteVideo = document.createElement('video');
-          remoteVideo.id = `video-${userId}`;
-          remoteVideo.autoplay = true;
-          remoteVideos.appendChild(remoteVideo);
-        }
-        remoteVideo.srcObject = event.streams[0];
-      };
-
-      // Send ICE candidates to the server
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('icecandidate', userId, event.candidate);
-        }
-      };
-
-      // If this is the initiator, create and send an offer
-      if (isInitiator) {
-        peerConnection.createOffer()
-          .then(offer => peerConnection.setLocalDescription(offer))
-          .then(() => {
-            socket.emit('offer', userId, peerConnection.localDescription);
-          });
-      }
+    // Ask user if they are the broadcaster
+    if (confirm("Are you the broadcaster?")) {
+      isBroadcaster = true;
+      startBroadcast();
+    } else {
+      joinStream();
     }
 
-    // Clean up when a user leaves
-    socket.on('userLeft', userId => {
-      if (peerConnections[userId]) {
-        peerConnections[userId].close();
-        delete peerConnections[userId];
-      }
-      const videoElement = document.getElementById(`video-${userId}`);
-      if (videoElement) {
-        videoElement.remove();
+    // Start broadcast by accessing camera
+    function startBroadcast() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          localStream = stream;
+          localVideo.srcObject = stream;
+          socket.emit('broadcaster'); // Notify server that user is the broadcaster
+        })
+        .catch(err => alert('Error accessing camera. Make sure browser permissions are granted.'));
+    }
+
+    // Join stream as a viewer
+    function joinStream() {
+      socket.emit('viewer'); // Notify server that user is a viewer
+    }
+
+    // Handle viewer connections
+    socket.on('offer', (id, description) => {
+      const peerConnection = new RTCPeerConnection();
+      peerConnections[id] = peerConnection;
+
+      peerConnection
+        .setRemoteDescription(description)
+        .then(() => peerConnection.createAnswer())
+        .then(answer => peerConnection.setLocalDescription(answer))
+        .then(() => socket.emit('answer', id, peerConnection.localDescription));
+
+      peerConnection.ontrack = event => {
+        let videoElement = document.createElement('video');
+        videoElement.srcObject = event.streams[0];
+        videoElement.autoplay = true;
+        remoteVideoContainer.appendChild(videoElement);
+      };
+
+      peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit('icecandidate', id, event.candidate);
+        }
+      };
+    });
+
+    // Handle broadcaster's ICE candidates
+    socket.on('icecandidate', (id, candidate) => {
+      const peerConnection = peerConnections[id];
+      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    // Broadcaster sets up a connection for each viewer
+    socket.on('viewer', id => {
+      const peerConnection = new RTCPeerConnection();
+      peerConnections[id] = peerConnection;
+
+      // Add broadcaster's local stream to connection
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit('icecandidate', id, event.candidate);
+        }
+      };
+
+      peerConnection.createOffer()
+        .then(offer => peerConnection.setLocalDescription(offer))
+        .then(() => socket.emit('offer', id, peerConnection.localDescription));
+    });
+
+    // Clean up connections if a viewer disconnects
+    socket.on('disconnectPeer', id => {
+      const peerConnection = peerConnections[id];
+      if (peerConnection) {
+        peerConnection.close();
+        delete peerConnections[id];
       }
     });
   </script>
