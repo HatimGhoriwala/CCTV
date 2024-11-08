@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebRTC Video Stream</title>
+  <title>One-Way WebRTC Video Stream</title>
   <style>
     video {
       width: 45%;
@@ -17,8 +17,8 @@
 <body>
   <h2>Video Stream</h2>
   
-  <video id="localVideo" autoplay muted></video>
-  <video id="remoteVideo" autoplay></video>
+  <video id="localVideo" autoplay muted></video> <!-- Local video -->
+  <video id="remoteVideo" autoplay></video> <!-- Remote video -->
   
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -28,15 +28,13 @@
     
     let localStream;
     let peerConnection;
-    let isSharingStream = false; // Flag to indicate if the user is sharing their local stream
-
-    // Get user media (local camera stream) if the user is sharing
+    
+    // Get user media (local camera stream)
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
         localStream = stream;
         localVideo.srcObject = stream;
         console.log('Local stream started');
-        isSharingStream = true; // User is sharing their stream
         setupWebRTC();
       })
       .catch(err => {
@@ -51,15 +49,13 @@
       peerConnection = new RTCPeerConnection();
       console.log('PeerConnection created');
       
-      // If user is sharing, add their stream to the connection
-      if (isSharingStream) {
-        localStream.getTracks().forEach(track => {
-          console.log('Adding track to peer connection:', track);
-          peerConnection.addTrack(track, localStream);
-        });
-      }
-
-      // Listen for remote stream
+      // Add local stream to the peer connection (this will send your video)
+      localStream.getTracks().forEach(track => {
+        console.log('Adding track to peer connection:', track);
+        peerConnection.addTrack(track, localStream);
+      });
+      
+      // Listen for remote stream (your friend’s video will be displayed here)
       peerConnection.ontrack = event => {
         console.log('Received remote stream:', event);
         remoteVideo.srcObject = event.streams[0];
@@ -73,26 +69,24 @@
         }
       };
       
-      // Create offer if the user is sharing their stream
-      if (isSharingStream) {
-        peerConnection.createOffer()
-          .then(offer => {
-            console.log('Created offer:', offer);
-            return peerConnection.setLocalDescription(offer);
-          })
-          .then(() => {
-            console.log('Sending offer to signaling server');
-            socket.emit('offer', peerConnection.localDescription);
-          })
-          .catch(err => {
-            console.error('Error creating offer:', err);
-          });
-      }
+      // Create offer
+      peerConnection.createOffer()
+        .then(offer => {
+          console.log('Created offer:', offer);
+          return peerConnection.setLocalDescription(offer);
+        })
+        .then(() => {
+          console.log('Sending offer to signaling server');
+          socket.emit('offer', peerConnection.localDescription);
+        })
+        .catch(err => {
+          console.error('Error creating offer:', err);
+        });
     }
 
-    // Handle offer from another client (mobile)
+    // Handle offer from your friend
     socket.on('offer', offer => {
-      console.log('Received offer from mobile:', offer);
+      console.log('Received offer:', offer);
       
       peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
         .then(() => {
@@ -112,14 +106,14 @@
         });
     });
 
-    // Handle answer from another client (mobile)
+    // Handle answer from your friend
     socket.on('answer', answer => {
-      console.log('Received answer from mobile:', answer);
+      console.log('Received answer:', answer);
       peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
         .catch(err => console.error('Error setting remote description:', err));
     });
 
-    // Handle ICE candidates from other clients
+    // Handle ICE candidates from other peers
     socket.on('icecandidate', candidate => {
       console.log('Received ICE candidate:', candidate);
       peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
