@@ -1,49 +1,38 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const socketIO = require('socket.io');
 
-
-
-// Initialize express and HTTP server
 const app = express();
 const server = http.createServer(app);
+const io = socketIO(server);
 
-// Initialize socket.io
-const io = socketIo(server);
+app.use(express.static('public')); // Serve static files
 
-// Serve static files (index.html)
-app.use(express.static('public'));
+io.on('connection', socket => {
+  console.log('User connected:', socket.id);
 
-// When a client connects
-io.on('connection', (socket) => {
-  console.log('A user connected');
-  
-  // Listen for an offer from the client (laptop)
-  socket.on('offer', (offer) => {
-    console.log('Received offer:', offer);
-    socket.broadcast.emit('offer', offer); // Broadcast the offer to other clients (mobiles)
+  // Notify existing users of the new user
+  socket.broadcast.emit('newUser', socket.id);
+
+  // Relay offers, answers, and ICE candidates
+  socket.on('offer', (userId, description) => {
+    io.to(userId).emit('offer', socket.id, description);
   });
-  
-  // Listen for an answer from the client (mobile)
-  socket.on('answer', (answer) => {
-    console.log('Received answer:', answer);
-    socket.broadcast.emit('answer', answer); // Broadcast the answer back to the laptop
+
+  socket.on('answer', (userId, description) => {
+    io.to(userId).emit('answer', socket.id, description);
   });
-  
-  // Listen for ICE candidates from clients (both laptop and mobile)
-  socket.on('icecandidate', (candidate) => {
-    console.log('Received ICE candidate:', candidate);
-    socket.broadcast.emit('icecandidate', candidate); // Broadcast ICE candidate to the other client
+
+  socket.on('icecandidate', (userId, candidate) => {
+    io.to(userId).emit('icecandidate', socket.id, candidate);
   });
-  
-  // When a client disconnects
+
+  // Notify others when a user disconnects
   socket.on('disconnect', () => {
-    console.log('A user disconnected');
+    console.log('User disconnected:', socket.id);
+    socket.broadcast.emit('userLeft', socket.id);
   });
 });
-const port = process.env.PORT || 3000;
 
-// Start server on port 3000
-server.listen(port, '0.0.0.0', () => {
-  console.log('Server running on http://0.0.0.0:3000');
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
