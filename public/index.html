@@ -3,82 +3,181 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multi-User WebRTC Video Stream</title>
+  <title>CCTV Live Stream</title>
   <style>
+    body {
+      background-color: #1b1b1b;
+      font-family: Arial, sans-serif;
+      color: #00FF41;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    h2 {
+      color: #00FF41;
+      margin-bottom: 20px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    #connectionStatus {
+      color: #ff4d4d;
+      font-size: 1em;
+      background: #333;
+      padding: 10px;
+      border: 2px solid #555;
+      width: 60%;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    #startButton {
+      background-color: #333;
+      color: #00FF41;
+      border: 2px solid #00FF41;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    #startButton:hover {
+      background-color: #00FF41;
+      color: #333;
+    }
     video {
       width: 45%;
-      margin: 10px;
+      background: #000;
+      border: 2px solid #00FF41;
+      margin: 5px;
+      padding: 5px;
+    }
+    #localVideo {
+      border: 3px solid #4CAF50;
     }
     #remoteVideoContainer {
       display: flex;
       flex-wrap: wrap;
+      justify-content: center;
+      border: 2px solid #555;
+      padding: 10px;
+      width: 80%;
+      background: #222;
+    }
+    #remoteVideoContainer video {
+      border: 2px solid #555;
     }
   </style>
 </head>
 <body>
-  <h2>Live Video Stream</h2>
-  <video id="localVideo" autoplay muted></video> <!-- Local broadcaster video -->
-  <div id="remoteVideoContainer"></div> <!-- Container for multiple viewers' video streams -->
+  <h2>CCTV Live Video Feed</h2>
+  <div class="status" id="connectionStatus">Status: Not Connected</div>
+
+  <!-- Viewer controls -->
+  <div class="controls">
+    <button id="startButton" class="hidden">Start Viewing Stream</button>
+  </div>
+
+  <video id="localVideo" autoplay muted playsinline></video>
+  <div id="remoteVideoContainer"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
     const localVideo = document.getElementById('localVideo');
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const startButton = document.getElementById('startButton');
 
     let localStream;
     let isBroadcaster = false;
-    let peerConnections = {}; // Store each viewer's peer connection
-    let pendingICECandidates = {}; // Store pending ICE candidates
+    let peerConnections = {};
+    let remoteStream = null;
 
-    // Ask user if they are the broadcaster
-    if (confirm("Are you the broadcaster?")) {
-      isBroadcaster = true;
+    const configuration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    function updateStatus(message) {
+      console.log(message);
+      connectionStatus.textContent = 'Status: ' + message;
+    }
+
+    isBroadcaster = confirm("Are you the broadcaster?");
+    if (isBroadcaster) {
       startBroadcast();
     } else {
       joinStream();
     }
 
-    // Start broadcast by accessing camera
-    function startBroadcast() {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          localStream = stream;
-          localVideo.srcObject = stream;
-          socket.emit('broadcaster'); // Notify server that user is the broadcaster
-        })
-        .catch(err => alert('Error accessing camera. Make sure browser permissions are granted.'));
+    async function startBroadcast() {
+      try {
+        updateStatus("Accessing camera...");
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true,
+          audio: true 
+        });
+        
+        updateStatus("Camera accessed successfully");
+        localStream = stream;
+        localVideo.srcObject = stream;
+        socket.emit('broadcaster');
+      } catch (err) {
+        console.error('Error accessing media devices:', err);
+        updateStatus("Error: " + err.message);
+        alert('Error accessing camera/microphone. Please ensure permissions are granted.');
+      }
     }
 
-    // Join stream as a viewer
     function joinStream() {
-      socket.emit('viewer'); // Notify server that user is a viewer
+      updateStatus("Joining as viewer...");
+      socket.emit('viewer');
+      localVideo.style.display = 'none';
+      startButton.classList.remove('hidden');
     }
 
-    // Handle viewer connections
-    socket.on('offer', (id, description) => {
-      const peerConnection = new RTCPeerConnection();
+    startButton.onclick = () => {
+      startButton.disabled = true;
+      if (remoteStream) {
+        const videos = remoteVideoContainer.getElementsByTagName('video');
+        for (let video of videos) {
+          video.play().catch(e => console.error("Error playing video:", e));
+        }
+      }
+    };
+
+    socket.on('viewer', id => {
+      if (!isBroadcaster) return;
+      
+      updateStatus("Viewer connecting: " + id);
+      const peerConnection = new RTCPeerConnection(configuration);
       peerConnections[id] = peerConnection;
 
-      peerConnection
-        .setRemoteDescription(description)
-        .then(() => {
-          // Add pending ICE candidates after setting remote description
-          if (pendingICECandidates[id]) {
-            pendingICECandidates[id].forEach(candidate => peerConnection.addIceCandidate(candidate));
-            pendingICECandidates[id] = []; // Clear pending candidates
-          }
-          return peerConnection.createAnswer();
-        })
-        .then(answer => peerConnection.setLocalDescription(answer))
-        .then(() => socket.emit('answer', id, peerConnection.localDescription));
-
-      peerConnection.ontrack = event => {
-        let videoElement = document.createElement('video');
-        videoElement.srcObject = event.streams[0];
-        videoElement.autoplay = true;
-        remoteVideoContainer.appendChild(videoElement);
+      peerConnection.oniceconnectionstatechange = () => {
+        updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
       };
+      
+      peerConnection.onconnectionstatechange = () => {
+        updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
+      };
+
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      peerConnection.createOffer()
+        .then(sdp => peerConnection.setLocalDescription(sdp))
+        .then(() => {
+          socket.emit('offer', id, peerConnection.localDescription);
+        })
+        .catch(err => console.error("Error creating offer:", err));
 
       peerConnection.onicecandidate = event => {
         if (event.candidate) {
@@ -87,49 +186,105 @@
       };
     });
 
-    // Handle ICE candidates
+    socket.on('offer', (id, description) => {
+      if (isBroadcaster) return;
+
+      updateStatus("Received offer from broadcaster");
+      const peerConnection = new RTCPeerConnection(configuration);
+      peerConnections[id] = peerConnection;
+
+      peerConnection.oniceconnectionstatechange = () => {
+        updateStatus(`ICE Connection State: ${peerConnection.iceConnectionState}`);
+      };
+      
+      peerConnection.onconnectionstatechange = () => {
+        updateStatus(`Connection State: ${peerConnection.connectionState}`);
+      };
+
+      peerConnection.ontrack = event => {
+        updateStatus("Received media track: " + event.track.kind);
+        
+        if (event.streams && event.streams[0]) {
+          remoteStream = event.streams[0];
+          let videoElement = document.getElementById(`remote-video-${id}`);
+          
+          if (!videoElement) {
+            videoElement = document.createElement('video');
+            videoElement.id = `remote-video-${id}`;
+            videoElement.playsInline = true;
+            videoElement.muted = false;
+            remoteVideoContainer.appendChild(videoElement);
+          }
+          
+          videoElement.srcObject = remoteStream;
+          
+          if (startButton.disabled) {
+            videoElement.play().catch(e => console.error("Error playing remote video:", e));
+          }
+        }
+      };
+
+      peerConnection.setRemoteDescription(new RTCSessionDescription(description))
+        .then(() => peerConnection.createAnswer())
+        .then(sdp => peerConnection.setLocalDescription(sdp))
+        .then(() => {
+          socket.emit('answer', id, peerConnection.localDescription);
+        })
+        .catch(err => {
+          console.error("Error handling offer:", err);
+          updateStatus("Error: " + err.message);
+        });
+
+      peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit('icecandidate', id, event.candidate);
+        }
+      };
+    });
+
+    socket.on('answer', (id, description) => {
+      if (!isBroadcaster) return;
+      
+      const peerConnection = peerConnections[id];
+      if (peerConnection) {
+        peerConnection.setRemoteDescription(new RTCSessionDescription(description))
+          .catch(err => {
+            console.error("Error setting remote description:", err);
+            updateStatus("Error: " + err.message);
+          });
+      }
+    });
+
     socket.on('icecandidate', (id, candidate) => {
       const peerConnection = peerConnections[id];
       if (peerConnection) {
-        if (peerConnection.remoteDescription) {
-          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } else {
-          // Queue ICE candidates if remote description is not set
-          if (!pendingICECandidates[id]) {
-            pendingICECandidates[id] = [];
-          }
-          pendingICECandidates[id].push(new RTCIceCandidate(candidate));
-        }
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+          .catch(err => {
+            console.error("Error adding ICE candidate:", err);
+            updateStatus("Error: " + err.message);
+          });
       }
     });
 
-    // Broadcaster sets up a connection for each viewer
-    socket.on('viewer', id => {
-      const peerConnection = new RTCPeerConnection();
-      peerConnections[id] = peerConnection;
-
-      // Add broadcaster's local stream to connection
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('icecandidate', id, event.candidate);
-        }
-      };
-
-      peerConnection.createOffer()
-        .then(offer => peerConnection.setLocalDescription(offer))
-        .then(() => socket.emit('offer', id, peerConnection.localDescription));
-    });
-
-    // Clean up connections if a viewer disconnects
     socket.on('disconnectPeer', id => {
-      const peerConnection = peerConnections[id];
-      if (peerConnection) {
-        peerConnection.close();
+      if (peerConnections[id]) {
+        peerConnections[id].close();
         delete peerConnections[id];
       }
+      
+      const videoElement = document.getElementById(`remote-video-${id}`);
+      if (videoElement) {
+        videoElement.remove();
+      }
+      updateStatus("Peer disconnected: " + id);
     });
+
+    window.onbeforeunload = () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      Object.values(peerConnections).forEach(pc => pc.close());
+    };
   </script>
 </body>
 </html>
