@@ -29,6 +29,7 @@
     let localStream;
     let isBroadcaster = false;
     let peerConnections = {}; // Store each viewer's peer connection
+    let pendingICECandidates = {}; // Store pending ICE candidates
 
     // Ask user if they are the broadcaster
     if (confirm("Are you the broadcaster?")) {
@@ -61,7 +62,14 @@
 
       peerConnection
         .setRemoteDescription(description)
-        .then(() => peerConnection.createAnswer())
+        .then(() => {
+          // Add pending ICE candidates after setting remote description
+          if (pendingICECandidates[id]) {
+            pendingICECandidates[id].forEach(candidate => peerConnection.addIceCandidate(candidate));
+            pendingICECandidates[id] = []; // Clear pending candidates
+          }
+          return peerConnection.createAnswer();
+        })
         .then(answer => peerConnection.setLocalDescription(answer))
         .then(() => socket.emit('answer', id, peerConnection.localDescription));
 
@@ -79,10 +87,20 @@
       };
     });
 
-    // Handle broadcaster's ICE candidates
+    // Handle ICE candidates
     socket.on('icecandidate', (id, candidate) => {
       const peerConnection = peerConnections[id];
-      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      if (peerConnection) {
+        if (peerConnection.remoteDescription) {
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          // Queue ICE candidates if remote description is not set
+          if (!pendingICECandidates[id]) {
+            pendingICECandidates[id] = [];
+          }
+          pendingICECandidates[id].push(new RTCIceCandidate(candidate));
+        }
+      }
     });
 
     // Broadcaster sets up a connection for each viewer
