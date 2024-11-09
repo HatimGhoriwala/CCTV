@@ -10,32 +10,44 @@
       font-family: Arial, sans-serif;
       color: #00FF41;
       margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      gap: 20px;
     }
+
     h2 {
       color: #00FF41;
-      margin-bottom: 20px;
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 1px;
+      margin: 0 0 20px 0;
+      font-size: clamp(1.5rem, 3vw, 2rem);
     }
+
     #connectionStatus {
       color: #ff4d4d;
-      font-size: 1em;
+      font-size: clamp(0.875rem, 2vw, 1rem);
       background: #333;
       padding: 10px;
       border: 2px solid #555;
-      width: 60%;
       text-align: center;
       margin-bottom: 20px;
     }
+
     .controls {
       margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
     }
+
     #startButton {
       background-color: #333;
       color: #00FF41;
@@ -45,45 +57,84 @@
       font-weight: bold;
       text-transform: uppercase;
     }
+
     #startButton:hover {
       background-color: #00FF41;
       color: #333;
     }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .timestamp {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #00FF41;
+      padding: 5px 10px;
+      border-radius: 3px;
+      font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+      z-index: 1;
+    }
+
     video {
-      width: 45%;
+      width: 100%;
+      max-width: 100%;
       background: #000;
       border: 2px solid #00FF41;
-      margin: 5px;
       padding: 5px;
+      box-sizing: border-box;
     }
+
     #localVideo {
       border: 3px solid #4CAF50;
     }
+
     #remoteVideoContainer {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
       border: 2px solid #555;
-      padding: 10px;
-      width: 80%;
+      padding: 20px;
       background: #222;
     }
-    #remoteVideoContainer video {
-      border: 2px solid #555;
+
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      #remoteVideoContainer {
+        padding: 10px;
+      }
     }
   </style>
 </head>
 <body>
-  <h2>CCTV Live Video Feed</h2>
-  <div class="status" id="connectionStatus">Status: Not Connected</div>
+  <div class="container">
+    <h2>CCTV Live Video Feed</h2>
+    <div class="status" id="connectionStatus">Status: Not Connected</div>
 
-  <!-- Viewer controls -->
-  <div class="controls">
-    <button id="startButton" class="hidden">Start Viewing Stream</button>
+    <div class="controls">
+      <button id="startButton" class="hidden">Start Viewing Stream</button>
+    </div>
+
+    <div class="video-wrapper">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <div class="timestamp" id="localTimestamp"></div>
+    </div>
+    
+    <div id="remoteVideoContainer"></div>
   </div>
-
-  <video id="localVideo" autoplay muted playsinline></video>
-  <div id="remoteVideoContainer"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -92,11 +143,26 @@
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
     const connectionStatus = document.getElementById('connectionStatus');
     const startButton = document.getElementById('startButton');
+    const localTimestamp = document.getElementById('localTimestamp');
 
     let localStream;
     let isBroadcaster = false;
     let peerConnections = {};
     let remoteStream = null;
+
+    function updateTimestamp(timestampElement) {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString();
+      const dateString = now.toLocaleDateString();
+      timestampElement.textContent = `${dateString} ${timeString}`;
+    }
+
+    // Update timestamps every second
+    setInterval(() => {
+      updateTimestamp(localTimestamp);
+      const remoteTimestamps = document.querySelectorAll('.remote-timestamp');
+      remoteTimestamps.forEach(timestamp => updateTimestamp(timestamp));
+    }, 1000);
 
     const configuration = {
       iceServers: [
@@ -122,7 +188,7 @@
         updateStatus("Accessing camera...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: true,
-          audio: true 
+          audio: false 
         });
         
         updateStatus("Camera accessed successfully");
@@ -140,6 +206,7 @@
       updateStatus("Joining as viewer...");
       socket.emit('viewer');
       localVideo.style.display = 'none';
+      localTimestamp.style.display = 'none';
       startButton.classList.remove('hidden');
     }
 
@@ -206,20 +273,30 @@
         
         if (event.streams && event.streams[0]) {
           remoteStream = event.streams[0];
-          let videoElement = document.getElementById(`remote-video-${id}`);
           
-          if (!videoElement) {
-            videoElement = document.createElement('video');
+          let videoWrapper = document.getElementById(`video-wrapper-${id}`);
+          if (!videoWrapper) {
+            videoWrapper = document.createElement('div');
+            videoWrapper.id = `video-wrapper-${id}`;
+            videoWrapper.className = 'video-wrapper';
+            
+            const videoElement = document.createElement('video');
             videoElement.id = `remote-video-${id}`;
             videoElement.playsInline = true;
             videoElement.muted = false;
-            remoteVideoContainer.appendChild(videoElement);
-          }
-          
-          videoElement.srcObject = remoteStream;
-          
-          if (startButton.disabled) {
-            videoElement.play().catch(e => console.error("Error playing remote video:", e));
+            
+            const timestampElement = document.createElement('div');
+            timestampElement.className = 'timestamp remote-timestamp';
+            
+            videoWrapper.appendChild(videoElement);
+            videoWrapper.appendChild(timestampElement);
+            remoteVideoContainer.appendChild(videoWrapper);
+            
+            videoElement.srcObject = remoteStream;
+            
+            if (startButton.disabled) {
+              videoElement.play().catch(e => console.error("Error playing remote video:", e));
+            }
           }
         }
       };
@@ -272,9 +349,9 @@
         delete peerConnections[id];
       }
       
-      const videoElement = document.getElementById(`remote-video-${id}`);
-      if (videoElement) {
-        videoElement.remove();
+      const videoWrapper = document.getElementById(`video-wrapper-${id}`);
+      if (videoWrapper) {
+        videoWrapper.remove();
       }
       updateStatus("Peer disconnected: " + id);
     });
