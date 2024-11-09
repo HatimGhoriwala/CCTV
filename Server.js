@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const path = require('path');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -12,15 +12,25 @@ const io = socketIo(server, {
   }
 });
 
-// Store active broadcaster
+setInterval(() => {
+  axios.get('http://cctv-njp7.onrender.com/keep-alive')
+    .then(response => {
+      if (response.status === 200) {
+        console.log('Server is awake');
+      } else {
+        console.error('Failed to wake up the server:', response.status);
+      }
+    })
+    .catch(error => console.error('Error keeping server awake:', error.message));
+}, 120000);
+
 let broadcaster = null;
 
-// Serve static files from 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
 // Serve the HTML file
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/keep-alive', (req, res) => {
+  res.status(200).send('Server is awake!');
 });
 
 // Socket.IO connection handling
