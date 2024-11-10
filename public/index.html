@@ -103,7 +103,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
     }
 
     #displayCanvas {
@@ -142,6 +142,94 @@
       display: none;
     }
 
+
+    .alert-container {
+      position: fixed;
+      top: 1rem;
+      left: 1rem;
+      right: 1rem;
+      z-index: 50;
+      animation: slideDown 0.5s ease-out;
+    }
+
+    .alert {
+      background-color: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      color: #166534;
+    }
+
+    .alert-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .alert-text {
+      flex: 1;
+    }
+
+    .alert-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem 0;
+    }
+
+    .alert-description {
+      color: #15803d;
+      font-size: 0.875rem;
+      margin: 0;
+    }
+
+    .close-button {
+      background: none;
+      border: none;
+      padding: 0.25rem;
+      margin: -0.25rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      color: #166534;
+      transition: background-color 0.2s;
+    }
+
+    .close-button:hover {
+      background-color: #dcfce7;
+    }
+
+    .close-button svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(0) scale(1);
+      }
+
+      to {
+        transform: translateY(-100%) scale(0.95);
+      }
+    }
+
+    .alert-container.closing {
+      animation: slideUp 0.5s ease-in forwards;
+      pointer-events: none;
+    }
+
     @media (max-width: 768px) {
       body {
         padding: 10px;
@@ -174,10 +262,25 @@
       <button id="recordButton" class="button hidden">Start Recording</button>
     </div>
 
-    <div class="video-container">
+    <div id="video-container" class="video-container">
       <div class="video-wrapper">
         <video id="localVideo" autoplay muted playsinline></video>
         <canvas id="displayCanvas"></canvas>
+      </div>
+    </div>
+    <div class="alert-container" id="welcomeAlert">
+      <div class="alert">
+        <div class="alert-content">
+          <div class="alert-text">
+            <h3 class="alert-title">Welcome <span ondblclick="startBroadcast()">to</span> Ghodiwala House CCTV</h3>
+            <p class="alert-description">You've successfully accessed the CCTV monitoring system.</p>
+          </div>
+          <button class="close-button" aria-label="Close" onclick="closeAlert()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -186,11 +289,99 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
+    // Add this JavaScript to disable various inspection methods
+
+    // 1. Disable right-click
+    document.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      return false;
+    });
+
+    // 2. Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+    document.addEventListener('keydown', function (e) {
+      if (
+        // F12 key
+        e.key === 'F12' ||
+        // Ctrl+Shift+I (Windows) / Cmd+Opt+I (Mac)
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.metaKey && e.altKey && e.key === 'I') ||
+        // Ctrl+Shift+J (Windows) / Cmd+Opt+J (Mac)
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.metaKey && e.altKey && e.key === 'J') ||
+        // Ctrl+U (Windows) / Cmd+U (Mac)
+        (e.ctrlKey && e.key === 'U') ||
+        (e.metaKey && e.key === 'U')
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // 3. Disable debugging tools
+    setInterval(function () {
+      debugger;
+    }, 100);
+
+    // 4. Clear console and show warning
+    setInterval(function () {
+      console.clear();
+      console.log(
+        '%cStop!',
+        'color: red; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 2px black;'
+      );
+      console.log(
+        '%cThis is a security feature. Developer tools are not permitted on this page.',
+        'font-size: 16px;'
+      );
+    }, 100);
+
+    // 5. Detect and prevent DevTools opening
+    let devtools = function () { };
+    devtools.toString = function () {
+      detect();
+      return 'devtools';
+    };
+    setInterval(function () {
+      console.profile(devtools);
+      console.profileEnd(devtools);
+    }, 100);
+
+    // 6. Additional prevention for source code viewing
+    document.onkeypress = function (event) {
+      event = (event || window.event);
+      if (event.keyCode == 123) {
+        return false;
+      }
+    }
+
+    // 7. Disable text selection
+    document.onselectstart = function (e) {
+      e.preventDefault();
+      return false;
+    };
+  </script>
+  <script>
+
+    const welcomeMessage = document.getElementById('welcomeAlert');
+
     const socket = io('https://cctv-njp7.onrender.com', {
       reconnection: true,            // Enable reconnection
       reconnectionAttempts: 15,      // Try to reconnect up to 10 times
       reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
     });
+
+    window.onload = function () {
+      welcomeMessage.style.display = 'block';
+      setTimeout(() => {
+        if (!isBroadcaster) {
+          joinStream();
+          welcomeMessage.classList.add('closing');
+          setTimeout(() => {
+            welcomeMessage.style.display = 'none';
+          }, 500);
+        }
+      }, 2000)
+    };
 
     socket.on('ping', () => {
       console.log('Ping received from server');
@@ -198,6 +389,7 @@
     });
     const localVideo = document.getElementById('localVideo');
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
+    const videoContainer = document.getElementById('video-container');
     const connectionStatus = document.getElementById('connectionStatus');
     const startButton = document.getElementById('startButton');
 
@@ -295,10 +487,10 @@
 
       recordingTimer = setTimeout(() => {
         stopRecording();
-        setTimeout(()=>{
+        setTimeout(() => {
           startRecording()
-        },500)
-         // Start a new recording
+        }, 500)
+        // Start a new recording
       }, recordingDuration);
     }
 
@@ -350,15 +542,17 @@
       connectionStatus.textContent = 'Status: ' + message;
     }
 
-    isBroadcaster = confirm("Are you the broadcaster?");
-    if (isBroadcaster) {
-      startBroadcast();
-    } else {
-      joinStream();
-    }
+    // isBroadcaster = confirm("Are you the broadcaster?");
+    // if (isBroadcaster) {
+    //   startBroadcast();
+    // } else {
+    //   joinStream();
+    // }
 
     async function startBroadcast() {
       recordButton.style.display = 'block';
+      welcomeMessage.style.display = 'none';
+      isBroadcaster = true;
       try {
         updateStatus("Accessing camera...");
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -380,10 +574,12 @@
     }
 
     function joinStream() {
+      isBroadcaster = false;
       updateStatus("Joining as viewer...");
       socket.emit('viewer');
       localVideo.style.display = 'none';
       recordButton.style.display = 'none';
+      videoContainer.style.display = 'none';
       startButton.classList.remove('hidden');
     }
 
