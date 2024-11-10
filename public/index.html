@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
       margin: 0;
       padding: 20px;
       min-height: 100vh;
+      box-sizing: border-box;
     }
 
     .container {
@@ -26,81 +28,118 @@
       color: #00FF41;
       text-align: center;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
       margin: 0 0 20px 0;
       font-size: clamp(1.5rem, 3vw, 2rem);
+      text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
     }
 
     #connectionStatus {
       color: #ff4d4d;
       font-size: clamp(0.875rem, 2vw, 1rem);
-      background: #333;
-      padding: 10px;
+      background: rgba(51, 51, 51, 0.8);
+      padding: 12px;
       border: 2px solid #555;
+      border-radius: 4px;
       text-align: center;
       margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     .controls {
       margin-bottom: 20px;
       display: flex;
       justify-content: center;
-      gap: 10px;
+      gap: 15px;
+      flex-wrap: wrap;
     }
 
-    #startButton {
-      background-color: #333;
+    .button {
+      background-color: #2a2a2a;
       color: #00FF41;
       border: 2px solid #00FF41;
-      padding: 10px 20px;
+      padding: 12px 24px;
       cursor: pointer;
       font-weight: bold;
       text-transform: uppercase;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+      min-width: 150px;
+      text-align: center;
     }
 
-    #startButton:hover {
+    .button:hover {
       background-color: #00FF41;
-      color: #333;
+      color: #1b1b1b;
+      box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      margin-bottom: 20px;
+      background: #000;
+      border: 3px solid #00FF41;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
     }
 
     .video-wrapper {
       position: relative;
       width: 100%;
-      margin-bottom: 20px;
+      padding-top: 56.25%;
+      /* 16:9 Aspect Ratio */
+    }
+
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #displayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
     }
 
     .timestamp {
       position: absolute;
-      bottom: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.7);
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
       color: #00FF41;
-      padding: 5px 10px;
-      border-radius: 3px;
+      padding: 8px 16px;
+      border-radius: 4px;
       font-size: clamp(0.75rem, 1.5vw, 0.875rem);
       z-index: 1;
-    }
-
-    video {
-      width: 100%;
-      max-width: 100%;
-      background: #000;
-      border: 2px solid #00FF41;
-      padding: 5px;
-      box-sizing: border-box;
-    }
-
-    #localVideo {
-      border: 3px solid #4CAF50;
+      border: 1px solid #00FF41;
     }
 
     #remoteVideoContainer {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 20px;
-      border: 2px solid #555;
       padding: 20px;
-      background: #222;
+      background: rgba(34, 34, 34, 0.8);
+      border-radius: 8px;
+      border: 2px solid #555;
+    }
+
+    .hidden {
+      display: none;
     }
 
     @media (max-width: 768px) {
@@ -110,29 +149,38 @@
 
       .controls {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
+      }
+
+      .button {
+        width: 100%;
       }
 
       #remoteVideoContainer {
         padding: 10px;
+        gap: 10px;
       }
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h2>CCTV Live Video Feed</h2>
-    <div class="status" id="connectionStatus">Status: Not Connected</div>
+    <div id="connectionStatus">Status: Not Connected</div>
 
     <div class="controls">
-      <button id="startButton" class="hidden">Start Viewing Stream</button>
+      <button id="startButton" class="button hidden">Start Viewing Stream</button>
+      <button id="recordButton" class="button hidden">Start Recording</button>
     </div>
 
-    <div class="video-wrapper">
-      <video id="localVideo" autoplay muted playsinline></video>
-      <div class="timestamp" id="localTimestamp"></div>
+    <div class="video-container">
+      <div class="video-wrapper">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <canvas id="displayCanvas"></canvas>
+      </div>
     </div>
-    
+
     <div id="remoteVideoContainer"></div>
   </div>
 
@@ -143,26 +191,158 @@
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
     const connectionStatus = document.getElementById('connectionStatus');
     const startButton = document.getElementById('startButton');
-    const localTimestamp = document.getElementById('localTimestamp');
 
     let localStream;
     let isBroadcaster = false;
     let peerConnections = {};
     let remoteStream = null;
 
-    function updateTimestamp(timestampElement) {
+    const displayCanvas = document.getElementById('displayCanvas');
+    const recordButton = document.getElementById('recordButton');
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+    let timestampInterval;
+
+    // Context for display canvas
+    const displayCtx = displayCanvas.getContext('2d');
+
+    // Off-screen canvas for recording
+    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCtx = offscreenCanvas.getContext('2d');
+
+    recordButton.onclick = () => {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    };
+
+    // Function to update the video frame with timestamp on both canvases
+    function drawFrameWithTimestamp() {
+      const width = localVideo.videoWidth;
+      const height = localVideo.videoHeight;
+
+      // Set canvas sizes to match video dimensions
+      displayCanvas.width = width;
+      displayCanvas.height = height;
+      offscreenCanvas.width = width;
+      offscreenCanvas.height = height;
+
+      // Draw the video frame on both canvases
+      displayCtx.drawImage(localVideo, 0, 0, width, height);
+      offscreenCtx.drawImage(localVideo, 0, 0, width, height);
+
+      // Current timestamp
       const now = new Date();
-      const timeString = now.toLocaleTimeString();
-      const dateString = now.toLocaleDateString();
-      timestampElement.textContent = `${dateString} ${timeString}`;
+      const date = now.toLocaleDateString();
+      const time = now.toLocaleTimeString();
+      const timestamp = `${date} ${time}`;
+      // Draw timestamp on visible canvas
+
+      displayCtx.font = '16px "Times New Roman"';
+      displayCtx.fillStyle = '#00FF41'; // Green color for text
+      displayCtx.textAlign = 'right';  // Align text to the right
+      displayCtx.textBaseline = 'bottom';
+      displayCtx.fillText(timestamp, width - 10, height - 10);
+
+      // Draw timestamp on off-screen canvas for recording
+      offscreenCtx.font = '16px "Times New Roman"';
+      offscreenCtx.fillStyle = '#00FF41'; // Green color for text
+      offscreenCtx.textAlign = 'right';  // Align text to the right
+      offscreenCtx.textBaseline = 'bottom';
+      offscreenCtx.fillText(timestamp, width - 10, height - 10);
     }
 
+    function drawFrameWithTimestampremote() {
+              const width = videoElement.videoWidth;
+              const height = videoElement.videoHeight;
+
+              // Set canvas sizes to match video dimensions
+              displayCanvas.width = width;
+              displayCanvas.height = height;
+              offscreenCanvas.width = width;
+              offscreenCanvas.height = height;
+
+              // Draw the video frame on both canvases
+              displayCtx.drawImage(videoElement, 0, 0, width, height);
+              offscreenCtx.drawImage(videoElement, 0, 0, width, height);
+
+              // Current timestamp
+              const now = new Date();
+              const date = now.toLocaleDateString();
+              const time = now.toLocaleTimeString();
+              const timestamp = `${date} ${time}`;
+              // Draw timestamp on visible canvas
+
+              displayCtx.font = '16px "Times New Roman"';
+              displayCtx.fillStyle = '#00FF41'; // Green color for text
+              displayCtx.textAlign = 'right';  // Align text to the right
+              displayCtx.textBaseline = 'bottom';
+              displayCtx.fillText(timestamp, width - 10, height - 10);
+
+              // Draw timestamp on off-screen canvas for recording
+              offscreenCtx.font = '16px "Times New Roman"';
+              offscreenCtx.fillStyle = '#00FF41'; // Green color for text
+              offscreenCtx.textAlign = 'right';  // Align text to the right
+              offscreenCtx.textBaseline = 'bottom';
+              offscreenCtx.fillText(timestamp, width - 10, height - 10);
+            }
+
+    // Start recording with timestamp overlay
+    function startRecording() {
+      isRecording = true;
+      recordButton.textContent = 'Stop Recording';
+      recordedChunks = [];
+
+      // Capture the off-screen canvas stream for recording
+      const canvasStream = offscreenCanvas.captureStream(60); // 30 fps
+      mediaRecorder = new MediaRecorder(canvasStream);
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = saveRecording;
+      mediaRecorder.start();
+
+      // Start drawing frames with timestamps on both canvases
+      timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 60); // 30 fps
+    }
+
+    // Stop recording
+    function stopRecording() {
+      isRecording = false;
+      recordButton.textContent = 'Start Recording';
+      mediaRecorder.stop();
+      clearInterval(timestampInterval);
+    }
+
+    // Save the recorded video
+    function saveRecording() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+
+      const downloadLink = document.createElement('a');
+      downloadLink.href = url;
+      downloadLink.download = `recording_with_timestamp_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+      downloadLink.textContent = 'Download Recording';
+      document.body.appendChild(downloadLink);
+    }
+
+    // function updateTimestamp(timestampElement) {
+    //   const now = new Date();
+    //   const timeString = now.toLocaleTimeString();
+    //   const dateString = now.toLocaleDateString();
+    //   timestampElement.textContent = `${dateString} ${timeString}`;
+    // }
+
     // Update timestamps every second
-    setInterval(() => {
-      updateTimestamp(localTimestamp);
-      const remoteTimestamps = document.querySelectorAll('.remote-timestamp');
-      remoteTimestamps.forEach(timestamp => updateTimestamp(timestamp));
-    }, 1000);
+    // setInterval(() => {
+    //   updateTimestamp(localTimestamp);
+    //   const remoteTimestamps = document.querySelectorAll('.remote-timestamp');
+    //   remoteTimestamps.forEach(timestamp => updateTimestamp(timestamp));
+    // }, 1000);
 
     const configuration = {
       iceServers: [
@@ -184,16 +364,18 @@
     }
 
     async function startBroadcast() {
+      recordButton.style.display = 'block';
       try {
         updateStatus("Accessing camera...");
-        const stream = await navigator.mediaDevices.getUserMedia({ 
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: false 
+          audio: false
         });
-        
+
         updateStatus("Camera accessed successfully");
         localStream = stream;
         localVideo.srcObject = stream;
+        localVideo.style.visibility = 'hidden'
         socket.emit('broadcaster');
       } catch (err) {
         console.error('Error accessing media devices:', err);
@@ -206,7 +388,7 @@
       updateStatus("Joining as viewer...");
       socket.emit('viewer');
       localVideo.style.display = 'none';
-      localTimestamp.style.display = 'none';
+      recordButton.style.display = 'none';
       startButton.classList.remove('hidden');
     }
 
@@ -222,7 +404,7 @@
 
     socket.on('viewer', id => {
       if (!isBroadcaster) return;
-      
+
       updateStatus("Viewer connecting: " + id);
       const peerConnection = new RTCPeerConnection(configuration);
       peerConnections[id] = peerConnection;
@@ -230,7 +412,7 @@
       peerConnection.oniceconnectionstatechange = () => {
         updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
       };
-      
+
       peerConnection.onconnectionstatechange = () => {
         updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
       };
@@ -263,37 +445,35 @@
       peerConnection.oniceconnectionstatechange = () => {
         updateStatus(`ICE Connection State: ${peerConnection.iceConnectionState}`);
       };
-      
+
       peerConnection.onconnectionstatechange = () => {
         updateStatus(`Connection State: ${peerConnection.connectionState}`);
       };
 
       peerConnection.ontrack = event => {
         updateStatus("Received media track: " + event.track.kind);
-        
+
         if (event.streams && event.streams[0]) {
           remoteStream = event.streams[0];
-          
+
           let videoWrapper = document.getElementById(`video-wrapper-${id}`);
           if (!videoWrapper) {
             videoWrapper = document.createElement('div');
             videoWrapper.id = `video-wrapper-${id}`;
             videoWrapper.className = 'video-wrapper';
-            
+
             const videoElement = document.createElement('video');
             videoElement.id = `remote-video-${id}`;
             videoElement.playsInline = true;
             videoElement.muted = false;
-            
-            const timestampElement = document.createElement('div');
-            timestampElement.className = 'timestamp remote-timestamp';
-            
+
             videoWrapper.appendChild(videoElement);
-            videoWrapper.appendChild(timestampElement);
             remoteVideoContainer.appendChild(videoWrapper);
-            
+
             videoElement.srcObject = remoteStream;
-            
+            videoElement.style.visibility = 'hidden';
+            setInterval(drawFrameWithTimestampremote, 1000 / 60);
+
             if (startButton.disabled) {
               videoElement.play().catch(e => console.error("Error playing remote video:", e));
             }
@@ -321,7 +501,7 @@
 
     socket.on('answer', (id, description) => {
       if (!isBroadcaster) return;
-      
+
       const peerConnection = peerConnections[id];
       if (peerConnection) {
         peerConnection.setRemoteDescription(new RTCSessionDescription(description))
@@ -348,7 +528,7 @@
         peerConnections[id].close();
         delete peerConnections[id];
       }
-      
+
       const videoWrapper = document.getElementById(`video-wrapper-${id}`);
       if (videoWrapper) {
         videoWrapper.remove();
@@ -364,4 +544,5 @@
     };
   </script>
 </body>
+
 </html>
