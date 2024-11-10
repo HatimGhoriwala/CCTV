@@ -186,7 +186,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-   const socket = io('https://cctv-njp7.onrender.com', {
+    const socket = io('https://cctv-njp7.onrender.com', {
       reconnection: true,            // Enable reconnection
       reconnectionAttempts: 15,      // Try to reconnect up to 10 times
       reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
@@ -264,41 +264,6 @@
       offscreenCtx.fillText(timestamp, width - 10, height - 10);
     }
 
-    function drawFrameWithTimestampremote() {
-              const width = videoElement.videoWidth;
-              const height = videoElement.videoHeight;
-
-              // Set canvas sizes to match video dimensions
-              displayCanvas.width = width;
-              displayCanvas.height = height;
-              offscreenCanvas.width = width;
-              offscreenCanvas.height = height;
-
-              // Draw the video frame on both canvases
-              displayCtx.drawImage(videoElement, 0, 0, width, height);
-              offscreenCtx.drawImage(videoElement, 0, 0, width, height);
-
-              // Current timestamp
-              const now = new Date();
-              const date = now.toLocaleDateString();
-              const time = now.toLocaleTimeString();
-              const timestamp = `${date} ${time}`;
-              // Draw timestamp on visible canvas
-
-              displayCtx.font = '16px "Times New Roman"';
-              displayCtx.fillStyle = '#00FF41'; // Green color for text
-              displayCtx.textAlign = 'right';  // Align text to the right
-              displayCtx.textBaseline = 'bottom';
-              displayCtx.fillText(timestamp, width - 10, height - 10);
-
-              // Draw timestamp on off-screen canvas for recording
-              offscreenCtx.font = '16px "Times New Roman"';
-              offscreenCtx.fillStyle = '#00FF41'; // Green color for text
-              offscreenCtx.textAlign = 'right';  // Align text to the right
-              offscreenCtx.textBaseline = 'bottom';
-              offscreenCtx.fillText(timestamp, width - 10, height - 10);
-            }
-
     // Start recording with timestamp overlay
     function startRecording() {
       isRecording = true;
@@ -338,21 +303,7 @@
       downloadLink.textContent = 'Download Recording';
       document.body.appendChild(downloadLink);
     }
-
-    // function updateTimestamp(timestampElement) {
-    //   const now = new Date();
-    //   const timeString = now.toLocaleTimeString();
-    //   const dateString = now.toLocaleDateString();
-    //   timestampElement.textContent = `${dateString} ${timeString}`;
-    // }
-
-    // Update timestamps every second
-    // setInterval(() => {
-    //   updateTimestamp(localTimestamp);
-    //   const remoteTimestamps = document.querySelectorAll('.remote-timestamp');
-    //   remoteTimestamps.forEach(timestamp => updateTimestamp(timestamp));
-    // }, 1000);
-
+    
     const configuration = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -384,7 +335,6 @@
         updateStatus("Camera accessed successfully");
         localStream = stream;
         localVideo.srcObject = stream;
-        localVideo.style.visibility = 'hidden'
         socket.emit('broadcaster');
       } catch (err) {
         console.error('Error accessing media devices:', err);
@@ -475,13 +425,42 @@
             videoElement.id = `remote-video-${id}`;
             videoElement.playsInline = true;
             videoElement.muted = false;
+            videoElement.autoplay = true; // Add autoplay
+
+            // Create a canvas for this specific video
+            const canvas = document.createElement('canvas');
+            canvas.id = `canvas-${id}`;
+            canvas.style.position = 'absolute';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
 
             videoWrapper.appendChild(videoElement);
+            videoWrapper.appendChild(canvas);
             remoteVideoContainer.appendChild(videoWrapper);
 
             videoElement.srcObject = remoteStream;
-            videoElement.style.visibility = 'hidden';
-            setInterval(drawFrameWithTimestampremote, 1000 / 60);
+            // Remove this line: videoElement.style.visibility = 'hidden'
+
+            // Setup timestamp drawing for this specific video/canvas pair
+            const ctx = canvas.getContext('2d');
+            setInterval(() => {
+              if (videoElement.videoWidth) {
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                // Draw timestamp
+                const now = new Date();
+                const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                ctx.font = '16px "Times New Roman"';
+                ctx.fillStyle = '#00FF41';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(timestamp, canvas.width - 10, canvas.height - 10);
+              }
+            }, 1000 / 30);
 
             if (startButton.disabled) {
               videoElement.play().catch(e => console.error("Error playing remote video:", e));
