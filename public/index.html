@@ -138,7 +138,11 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
+    const socket = io('https://cctv-njp7.onrender.com', {
+      reconnection: true,            // Enable reconnection
+      reconnectionAttempts: 15,      // Try to reconnect up to 10 times
+      reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
+    });
     const localVideo = document.getElementById('localVideo');
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
     const connectionStatus = document.getElementById('connectionStatus');
