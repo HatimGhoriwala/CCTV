@@ -33,10 +33,24 @@ app.get('/keep-alive', (req, res) => {
   res.status(200).send('Server is awake!');
 });
 
+function startHeartbeat(socket) {
+  return setInterval(() => {
+    console.log(`Pinging client: ${socket.id}`);
+    socket.emit('ping');
+  }, 10000); // Ping every 10 seconds
+}
+
 // Socket.IO connection handling
 io.on('connection', socket => {
   console.log('Client connected:', socket.id);
 
+  const heartbeatInterval = startHeartbeat(socket);
+
+  // Listen for 'pong' events from the client
+  socket.on('pong', () => {
+    console.log(`Pong received from client: ${socket.id}`);
+  });
+  
   // Broadcaster registration
   socket.on('broadcaster', () => {
     broadcaster = socket.id;
@@ -74,6 +88,8 @@ io.on('connection', socket => {
   // Handle disconnections
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
+    
+    clearInterval(heartbeatInterval);
     
     if (socket.id === broadcaster) {
       console.log('Broadcaster disconnected');
