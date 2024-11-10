@@ -275,11 +275,6 @@
             <h3 class="alert-title">Welcome <span ondblclick="startBroadcast()">to</span> Ghodiwala House CCTV</h3>
             <p class="alert-description">You've successfully accessed the CCTV monitoring system.</p>
           </div>
-          <button class="close-button" aria-label="Close" onclick="closeAlert()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>
@@ -457,7 +452,7 @@
     }
 
     let recordingTimer;
-    const recordingDuration = 15000;
+    const recordingDuration = 3600000;
     let startTime;
     let endTime;
 
