@@ -143,6 +143,12 @@
       reconnectionAttempts: 15,      // Try to reconnect up to 10 times
       reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
     });
+
+    socket.on('ping', () => {
+      console.log('Ping received from server');
+      socket.emit('pong');
+    });
+    
     const localVideo = document.getElementById('localVideo');
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
     const connectionStatus = document.getElementById('connectionStatus');
