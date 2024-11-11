@@ -458,35 +458,44 @@
 
     // Start recording with timestamp overlay
     function startRecording() {
-      isRecording = true;
-      recordButton.textContent = 'Stop Recording';
-      recordedChunks = [];
+    isRecording = true;
+    recordButton.textContent = 'Stop Recording';
+    recordedChunks = [];
 
-      startTime = new Date();
+    startTime = new Date();
 
-      // Capture the off-screen canvas stream for recording
-      const canvasStream = offscreenCanvas.captureStream(60); // 30 fps
-      mediaRecorder = new MediaRecorder(canvasStream);
-      mediaRecorder.ondataavailable = event => {
+    // Capture the off-screen canvas stream at 60 fps
+    const canvasStream = offscreenCanvas.captureStream(60); // 60 fps
+
+    // Configure media recorder with 60 fps and a higher bitrate for better quality
+    const options = {
+        mimeType: 'video/webm; codecs=vp9', // Set MIME type to WebM with VP9 codec
+        videoBitsPerSecond: 8000000 // Increase bitrate for high-quality video
+    };
+
+    mediaRecorder = new MediaRecorder(canvasStream, options);
+
+    mediaRecorder.ondataavailable = event => {
         if (event.data.size > 0) recordedChunks.push(event.data);
-      };
+    };
 
-      mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = () => {
         endTime = new Date();
         saveRecording();  // Save after stopping the recording
-      };
+    };
 
-      mediaRecorder.start();
+    mediaRecorder.start();
 
-      timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 60); // 30 fps
+    // Update the interval to match the 60fps rate
+    timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 60); // 60 fps
 
-      recordingTimer = setTimeout(() => {
+    recordingTimer = setTimeout(() => {
         stopRecording();
         setTimeout(() => {
-          startRecording()
-        }, 500)
-        // Start a new recording
-      }, recordingDuration);
+            startRecording();
+        }, 500);
+        // Start a new recording after a short delay
+    }, recordingDuration);
     }
 
     // Stop recording
@@ -509,7 +518,7 @@
       const downloadLink = document.createElement('a');
       downloadLink.href = url;
       downloadLink.style.visibility = 'hidden'
-      downloadLink.download = `recording_${startFormatted}_to_${endFormatted}.mp4`;
+      downloadLink.download = `recording_${startFormatted}_to_${endFormatted}.webm`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       downloadLink.remove();
