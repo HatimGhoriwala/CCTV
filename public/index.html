@@ -538,7 +538,9 @@
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+      ],
+      iceTransportPolicy: 'all',
+      bandwidth: 10000  // Increase bandwidth (in kbps)
     };
 
     function updateStatus(message) {
@@ -553,16 +555,22 @@
     //   joinStream();
     // }
 
+    const constraints = {
+    video: {
+    width: { ideal: 1920 },      // Target Full HD resolution
+    height: { ideal: 1080 },
+    frameRate: { ideal: 60 },    // Target 60 FPS
+    facingMode: 'environment'           // Camera facing
+  }
+};
+
     async function startBroadcast() {
       recordButton.style.display = 'block';
       welcomeMessage.style.display = 'none';
       isBroadcaster = true;
       try {
         updateStatus("Accessing camera...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         updateStatus("Camera accessed successfully");
         localStream = stream;
