@@ -283,78 +283,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script>
-    // Add this JavaScript to disable various inspection methods
-
-    // 1. Disable right-click
-    document.addEventListener('contextmenu', function (e) {
-      e.preventDefault();
-      return false;
-    });
-
-    // 2. Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-    document.addEventListener('keydown', function (e) {
-      if (
-        // F12 key
-        e.key === 'F12' ||
-        // Ctrl+Shift+I (Windows) / Cmd+Opt+I (Mac)
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.metaKey && e.altKey && e.key === 'I') ||
-        // Ctrl+Shift+J (Windows) / Cmd+Opt+J (Mac)
-        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-        (e.metaKey && e.altKey && e.key === 'J') ||
-        // Ctrl+U (Windows) / Cmd+U (Mac)
-        (e.ctrlKey && e.key === 'U') ||
-        (e.metaKey && e.key === 'U')
-      ) {
-        e.preventDefault();
-        return false;
-      }
-    });
-
-    // 3. Disable debugging tools
-    setInterval(function () {
-      debugger;
-    }, 100);
-
-    // 4. Clear console and show warning
-    setInterval(function () {
-      console.clear();
-      console.log(
-        '%cStop!',
-        'color: red; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 2px black;'
-      );
-      console.log(
-        '%cThis is a security feature. Developer tools are not permitted on this page.',
-        'font-size: 16px;'
-      );
-    }, 100);
-
-    // 5. Detect and prevent DevTools opening
-    let devtools = function () { };
-    devtools.toString = function () {
-      detect();
-      return 'devtools';
-    };
-    setInterval(function () {
-      console.profile(devtools);
-      console.profileEnd(devtools);
-    }, 100);
-
-    // 6. Additional prevention for source code viewing
-    document.onkeypress = function (event) {
-      event = (event || window.event);
-      if (event.keyCode == 123) {
-        return false;
-      }
-    }
-
-    // 7. Disable text selection
-    document.onselectstart = function (e) {
-      e.preventDefault();
-      return false;
-    };
-  </script>
+  
   <script>
 
     const welcomeMessage = document.getElementById('welcomeAlert');
