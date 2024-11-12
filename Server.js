@@ -50,6 +50,10 @@ io.on('connection', socket => {
   socket.on('pong', () => {
     console.log(`Pong received from client: ${socket.id}`);
   });
+
+  socket.on('keepalive', (timestamp) => {
+    socket.emit('keepalive-response', timestamp);
+});
   
   // Broadcaster registration
   socket.on('broadcaster', () => {
