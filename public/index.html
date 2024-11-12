@@ -359,10 +359,111 @@
 
     const welcomeMessage = document.getElementById('welcomeAlert');
 
+    const configuration = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceTransportPolicy: 'all',
+        iceCandidatePoolSize: 10,
+        bundlePolicy: 'max-bundle'
+    };
+
+    class ConnectionManager {
+        constructor(socket, configuration) {
+            this.socket = socket;
+            this.configuration = configuration;
+            this.peerConnections = {};
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.keepAliveInterval = null;
+            this.connectionCheckInterval = null;
+            this.setupKeepAlive();
+        }
+
+        setupKeepAlive() {
+            // Send keepalive ping every 20 seconds
+            this.keepAliveInterval = setInterval(() => {
+                if (this.socket.connected) {
+                    this.socket.emit('keepalive', Date.now());
+                } else {
+                    this.handleDisconnection();
+                }
+            }, 20000);
+
+            // Check peer connections every 30 seconds
+            this.connectionCheckInterval = setInterval(() => {
+                this.checkPeerConnections();
+            }, 30000);
+        }
+
+        checkPeerConnections() {
+            Object.entries(this.peerConnections).forEach(([id, pc]) => {
+                if (pc.iceConnectionState === 'disconnected' || 
+                    pc.iceConnectionState === 'failed' || 
+                    pc.connectionState === 'failed') {
+                    this.handlePeerDisconnection(id);
+                }
+            });
+        }
+
+        handlePeerDisconnection(id) {
+            if (this.peerConnections[id]) {
+                const pc = this.peerConnections[id];
+                pc.close();
+                delete this.peerConnections[id];
+                
+                // Attempt to reestablish connection
+                if (isBroadcaster) {
+                    this.socket.emit('broadcaster');
+                } else {
+                    this.socket.emit('viewer');
+                }
+            }
+        }
+
+        handleDisconnection() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+                
+                setTimeout(() => {
+                    this.socket.connect();
+                }, 5000 * this.reconnectAttempts); // Exponential backoff
+            }
+        }
+
+        cleanup() {
+            clearInterval(this.keepAliveInterval);
+            clearInterval(this.connectionCheckInterval);
+            Object.values(this.peerConnections).forEach(pc => pc.close());
+            this.peerConnections = {};
+        }
+    }
+    
     const socket = io('https://cctv-njp7.onrender.com', {
       reconnection: true,            // Enable reconnection
       reconnectionAttempts: 15,      // Try to reconnect up to 10 times
       reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
+    });
+
+    const connManager = new ConnectionManager(socket, configuration);
+
+    // ADDED: Enhanced socket connection handlers
+    socket.on('connect', () => {
+        console.log('Socket connected');
+        connManager.reconnectAttempts = 0;
+        if (isBroadcaster) {
+            startBroadcast();
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+        updateStatus('Disconnected - Attempting to reconnect...');
     });
 
     window.onload = function () {
@@ -554,27 +655,35 @@
     // }
 
     async function startBroadcast() {
-      recordButton.style.display = 'block';
-      welcomeMessage.style.display = 'none';
-      isBroadcaster = true;
-      try {
-        updateStatus("Accessing camera...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
+        recordButton.style.display = 'block';
+        welcomeMessage.style.display = 'none';
+        isBroadcaster = true;
+        
+        try {
+            updateStatus("Accessing camera...");
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: false
+            });
 
-        updateStatus("Camera accessed successfully");
-        localStream = stream;
-        localVideo.srcObject = stream;
-        localVideo.style.visibility = 'hidden'
-        setInterval(drawFrameWithTimestamp, 1000 / 60);
-        socket.emit('broadcaster');
-      } catch (err) {
-        console.error('Error accessing media devices:', err);
-        updateStatus("Error: " + err.message);
-        alert('Error accessing camera/microphone. Please ensure permissions are granted.');
-      }
+            updateStatus("Camera accessed successfully");
+            localStream = stream;
+            localVideo.srcObject = stream;
+            localVideo.style.visibility = 'hidden';
+            setInterval(drawFrameWithTimestamp, 1000 / 60);
+            
+            // Add connection recovery
+            if (socket.connected) {
+                socket.emit('broadcaster');
+            } else {
+                socket.connect();
+            }
+
+        } catch (err) {
+            console.error('Error accessing media devices:', err);
+            updateStatus("Error: " + err.message);
+            alert('Error accessing camera/microphone. Please ensure permissions are granted.');
+        }
     }
 
     function joinStream() {
@@ -598,36 +707,48 @@
     };
 
     socket.on('viewer', id => {
-      if (!isBroadcaster) return;
+        if (!isBroadcaster) return;
 
-      updateStatus("Viewer connecting: " + id);
-      const peerConnection = new RTCPeerConnection(configuration);
-      peerConnections[id] = peerConnection;
+        updateStatus("Viewer connecting: " + id);
+        const peerConnection = new RTCPeerConnection(configuration);
+        connManager.peerConnections[id] = peerConnection;
 
-      peerConnection.oniceconnectionstatechange = () => {
-        updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
-      };
+        peerConnection.oniceconnectionstatechange = () => {
+            updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
+            if (peerConnection.iceConnectionState === 'disconnected' || 
+                peerConnection.iceConnectionState === 'failed') {
+                connManager.handlePeerDisconnection(id);
+            }
+        };
 
-      peerConnection.onconnectionstatechange = () => {
-        updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
-      };
+        peerConnection.onconnectionstatechange = () => {
+            updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
+            if (peerConnection.connectionState === 'failed') {
+                connManager.handlePeerDisconnection(id);
+            }
+        };
 
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
 
-      peerConnection.createOffer()
-        .then(sdp => peerConnection.setLocalDescription(sdp))
-        .then(() => {
-          socket.emit('offer', id, peerConnection.localDescription);
-        })
-        .catch(err => console.error("Error creating offer:", err));
+        peerConnection.createOffer()
+            .then(sdp => {
+                // Set higher priority for video
+                sdp.sdp = sdp.sdp.replace('useinbandfec=1', 
+                    'useinbandfec=1; x-google-min-bitrate=2000; x-google-max-bitrate=4000');
+                return peerConnection.setLocalDescription(sdp);
+            })
+            .then(() => {
+                socket.emit('offer', id, peerConnection.localDescription);
+            })
+            .catch(err => console.error("Error creating offer:", err));
 
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('icecandidate', id, event.candidate);
-        }
-      };
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                socket.emit('icecandidate', id, event.candidate);
+            }
+        };
     });
 
     socket.on('offer', (id, description) => {
@@ -759,12 +880,12 @@
       }
       updateStatus("Peer disconnected: " + id);
     });
-
+    
     window.onbeforeunload = () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      Object.values(peerConnections).forEach(pc => pc.close());
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+        connManager.cleanup();
     };
   </script>
 </body>
