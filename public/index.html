@@ -564,13 +564,6 @@
       return `${year}-${month}-${day}_${hours}:${minutes}`;
     }
 
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    };
-
     function updateStatus(message) {
       console.log(message);
       connectionStatus.textContent = 'Status: ' + message;
