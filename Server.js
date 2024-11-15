@@ -113,11 +113,12 @@ io.on('connection', socket => {
       console.log('Broadcaster reconnected:', broadcaster);
       socket.broadcast.emit('broadcaster');
     }
+  })
+})
 
 // Error handling for the server
 server.on('error', (error) => {
   console.error('Server error:', error);
-});
 });
 
 // Start server
