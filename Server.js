@@ -114,15 +114,10 @@ io.on('connection', socket => {
       socket.broadcast.emit('broadcaster');
     }
 
-  // Error handling
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-});
-
 // Error handling for the server
 server.on('error', (error) => {
   console.error('Server error:', error);
+});
 });
 
 // Start server
