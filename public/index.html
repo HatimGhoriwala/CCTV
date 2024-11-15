@@ -465,7 +465,7 @@
     startTime = new Date();
 
     // Capture the off-screen canvas stream at 60 fps
-    const canvasStream = offscreenCanvas.captureStream(60); // 60 fps
+    const canvasStream = offscreenCanvas.captureStream(30); // 60 fps
 
     // Configure media recorder with 60 fps and a higher bitrate for better quality
     const options = {
@@ -487,7 +487,7 @@
     mediaRecorder.start();
 
     // Update the interval to match the 60fps rate
-    timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 60); // 60 fps
+    timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 30); // 60 fps
 
     recordingTimer = setTimeout(() => {
         stopRecording();
@@ -559,7 +559,7 @@
     video: {
     width: { ideal: 1920 },      // Target Full HD resolution
     height: { ideal: 1080 },
-    frameRate: { ideal: 60 },    // Target 60 FPS
+    frameRate: { ideal: 30 },    // Target 60 FPS
     facingMode: 'environment'           // Camera facing
   }
 };
@@ -576,7 +576,7 @@
         localStream = stream;
         localVideo.srcObject = stream;
         localVideo.style.visibility = 'hidden'
-        setInterval(drawFrameWithTimestamp, 1000 / 60);
+        setInterval(drawFrameWithTimestamp, 1000 / 30);
         socket.emit('broadcaster');
       } catch (err) {
         console.error('Error accessing media devices:', err);
