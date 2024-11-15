@@ -768,6 +768,21 @@
       updateStatus("Peer disconnected: " + id);
     });
 
+    socket.on('disconnect', () => {
+  console.log('Disconnected from server');
+
+  if (isBroadcaster) {
+    // Attempt to reconnect as broadcaster
+    console.log('Reconnecting as broadcaster...');
+    socket.emit('reconnectBroadcaster', socket.id);
+  }
+});
+
+// Reconnection attempt with a delay
+  socket.io.on('reconnect_attempt', (attempt) => {
+  console.log(`Reconnection attempt #${attempt}`);
+});
+
     window.onbeforeunload = () => {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
