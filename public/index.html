@@ -640,8 +640,8 @@
       if (!isBroadcaster) return;
 
       updateStatus("Viewer connecting: " + id);
-      
-      peerConnections[id] = peerConnections['broadcaster'];
+      const peerConnection = new RTCPeerConnection(configuration)
+      peerConnections[id] = peerConnections;
 
       peerConnection.oniceconnectionstatechange = () => {
         updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
