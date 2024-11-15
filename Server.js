@@ -107,14 +107,11 @@ io.on('connection', socket => {
     }
   });
 
-  socket.on('reconnectBroadcaster', (prevBroadcasterId) => {
-    if (broadcaster === null && socket.id === prevBroadcasterId) {
-      broadcaster = socket.id;
-      console.log('Broadcaster reconnected:', broadcaster);
-      socket.broadcast.emit('broadcaster');
-    }
-  })
-})
+  // Error handling
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
+});
 
 // Error handling for the server
 server.on('error', (error) => {
