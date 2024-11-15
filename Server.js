@@ -57,9 +57,13 @@ io.on('connection', socket => {
   
   // Broadcaster registration
   socket.on('broadcaster', () => {
-    broadcaster = socket.id;
-    socket.broadcast.emit('broadcaster', socket.id);
-    console.log('Broadcaster registered:', broadcaster);
+    if (!broadcaster) {
+      broadcaster = socket.id;
+      console.log('Broadcaster registered:', broadcaster);
+      socket.broadcast.emit('broadcaster', socket.id);
+    } else {
+      console.log('Broadcaster already registered. Ignoring new broadcaster registration.');
+    }
   });
 
   // Viewer joining
