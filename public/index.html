@@ -359,11 +359,25 @@
 
     const welcomeMessage = document.getElementById('welcomeAlert');
 
-    const socket = io('https://cctv-njp7.onrender.com', {
-      reconnection: true,            // Enable reconnection
-      reconnectionAttempts: 15,      // Try to reconnect up to 10 times
-      reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
-    });
+  //  const socket = io('https://cctv-njp7.onrender.com', {
+   //   reconnection: true,            // Enable reconnection
+  //    reconnectionAttempts: 15,      // Try to reconnect up to 10 times
+ //     reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
+//    });
+
+    const socketUrl = 'https://cctv-njp7.onrender.com'; // Replace with your server's URL
+
+let socket;
+
+function connectBroadcaster() {
+  console.log('Attempting to connect as broadcaster...');
+  socket = io(socketUrl);
+
+  // On successful connection
+  socket.on('connect', () => {
+    console.log('Connected to server as broadcaster!'); // Notify server that this is the broadcaster// Call the function to start broadcasting
+  });
+}
 
     window.onload = function () {
       welcomeMessage.style.display = 'block';
@@ -565,6 +579,7 @@
 };
 
     async function startBroadcast() {
+      connectBroadcaster()
       recordButton.style.display = 'block';
       welcomeMessage.style.display = 'none';
       isBroadcaster = true;
@@ -586,6 +601,7 @@
     }
 
     function joinStream() {
+      connectBroadcaster();
       isBroadcaster = false;
       updateStatus("Joining as viewer...");
       socket.emit('viewer');
@@ -754,6 +770,13 @@
           });
       }
     });
+
+    socket.on('disconnect', () => {
+    console.log('Disconnected from server. Reconnecting...');
+      if(isBroadcaster){
+      setTimeout(startBroadcast, 2000);
+      }// Retry connection after 2 seconds
+  });
 
     socket.on('disconnectPeer', id => {
       if (peerConnections[id]) {
