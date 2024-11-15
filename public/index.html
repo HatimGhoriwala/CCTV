@@ -565,24 +565,55 @@
 };
 
     async function startBroadcast() {
-      recordButton.style.display = 'block';
-      welcomeMessage.style.display = 'none';
-      isBroadcaster = true;
-      try {
-        updateStatus("Accessing camera...");
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  recordButton.style.display = 'block';
+  welcomeMessage.style.display = 'none';
+  isBroadcaster = true;
 
-        updateStatus("Camera accessed successfully");
-        localStream = stream;
-        localVideo.srcObject = stream;
-        localVideo.style.visibility = 'hidden'
-        setInterval(drawFrameWithTimestamp, 1000 / 30);
-        socket.emit('broadcaster');
-      } catch (err) {
-        console.error('Error accessing media devices:', err);
-        updateStatus("Error: " + err.message);
-        alert('Error accessing camera/microphone. Please ensure permissions are granted.');
+  try {
+    updateStatus("Accessing camera...");
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    updateStatus("Camera accessed successfully");
+    localStream = stream;
+    localVideo.srcObject = stream;
+    localVideo.style.visibility = 'hidden';
+    setInterval(drawFrameWithTimestamp, 1000 / 60);
+
+    // Create the broadcaster's RTCPeerConnection
+    const peerConnection = new RTCPeerConnection(configuration);
+    peerConnections['broadcaster'] = peerConnection;
+
+    peerConnection.oniceconnectionstatechange = () => {
+      updateStatus(`ICE Connection State for broadcaster: ${peerConnection.iceConnectionState}`);
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      updateStatus(`Connection State for broadcaster: ${peerConnection.connectionState}`);
+    };
+
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+
+    peerConnection.createOffer()
+      .then(sdp => peerConnection.setLocalDescription(sdp))
+      .then(() => {
+        socket.emit('broadcaster', peerConnection.localDescription);
+      })
+      .catch(err => console.error("Error creating offer:", err));
+
+    peerConnection.onicecandidate = event => {
+      if (event.candidate) {
+        socket.emit('icecandidate', 'broadcaster', event.candidate);
       }
+    };
+
+    socket.emit('broadcaster');
+  } catch (err) {
+    console.error('Error accessing media devices:', err);
+    updateStatus("Error: " + err.message);
+    alert('Error accessing camera/microphone. Please ensure permissions are granted.');
+  }
     }
 
     function joinStream() {
@@ -609,8 +640,8 @@
       if (!isBroadcaster) return;
 
       updateStatus("Viewer connecting: " + id);
-      const peerConnection = new RTCPeerConnection(configuration)
-      peerConnections[id] = peerConnections;
+      
+      peerConnections[id] = peerConnections['broadcaster'];
 
       peerConnection.oniceconnectionstatechange = () => {
         updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
@@ -767,21 +798,6 @@
       }
       updateStatus("Peer disconnected: " + id);
     });
-
-    socket.on('disconnect', () => {
-  console.log('Disconnected from server');
-
-  if (isBroadcaster) {
-    // Attempt to reconnect as broadcaster
-    console.log('Reconnecting as broadcaster...');
-    socket.emit('reconnectBroadcaster', socket.id);
-  }
-});
-
-// Reconnection attempt with a delay
-  socket.io.on('reconnect_attempt', (attempt) => {
-  console.log(`Reconnection attempt #${attempt}`);
-});
 
     window.onbeforeunload = () => {
       if (localStream) {
