@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.5/fix-webm-duration.js"></script>
   <title>CCTV Live Stream</title>
   <style>
     body {
@@ -281,8 +282,6 @@
 
     <div id="remoteVideoContainer"></div>
   </div>
-  
-  <script src="https://raw.githack.com/yusitnikov/fix-webm-duration/master/fix-webm-duration.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     // Add this JavaScript to disable various inspection methods
@@ -669,7 +668,7 @@ function connectBroadcaster() {
 
     mediaRecorder.onstop = () => {
         endTime = new Date();
-        await saveRecording();  // Save after stopping the recording
+        saveRecording();  // Save after stopping the recording
     };
 
     mediaRecorder.start(1000);
@@ -699,8 +698,10 @@ function connectBroadcaster() {
     async function saveRecording() {
       const blob = new Blob(recordedChunks, { type: 'video/webm' });
       const duration = endTime - startTime;
-      const fixed = await fixWebmDuration(blob, duration);
-      const url = URL.createObjectURL(fixed);
+
+      fixWebmDuration(blob, duration)
+        .then(fixedBlob => {
+            const url = URL.createObjectURL(fixedBlob);
 
       const startFormatted = formatDateTime(startTime);
       const endFormatted = formatDateTime(endTime);
@@ -712,6 +713,21 @@ function connectBroadcaster() {
       document.body.appendChild(downloadLink);
       downloadLink.click();
       downloadLink.remove();
+            
+            // Cleanup
+            URL.revokeObjectURL(url);
+            console.log(`Video saved with duration: ${duration/1000} seconds`);
+        })
+        .catch(error => {
+            console.error('Error fixing video duration:', error);
+            // Fallback to saving original blob if fixing fails
+            const url = URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = 'recording_fallback.webm';
+            downloadLink.click();
+            URL.revokeObjectURL(url);
+        });
     }
 
     function formatDateTime(date) {
