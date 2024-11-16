@@ -694,26 +694,11 @@ function connectBroadcaster() {
       clearTimeout(recordingTimer);
     }
 
-    const fixWebmDuration = (blob) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const buffer = new Uint8Array(reader.result);
-            const duration = endTime - startTime;
-            const fixedBlob = window.webmFixDuration(buffer, duration);
-            resolve(new Blob([fixedBlob], { type: 'video/webm' }));
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(blob);
-    });
-    };
-};
-
     // Save the recorded video
     function saveRecording() {
       const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const fixedBlob = await fixWebmDuration(blob);
-      const url = URL.createObjectURL(fixedBlob);
+      
+      const url = URL.createObjectURL(blob);
 
       const startFormatted = formatDateTime(startTime);
       const endFormatted = formatDateTime(endTime);
