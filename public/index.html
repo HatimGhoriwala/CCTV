@@ -594,6 +594,25 @@ function connectBroadcaster() {
     const offscreenCanvas = document.createElement('canvas');
     const offscreenCtx = offscreenCanvas.getContext('2d');
 
+    function fixWebmDuration(blob, duration) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const buffer = new Uint8Array(reader.result);
+            try {
+                // Ensure webmFixDuration is defined and works
+                const fixedBlob = webmFixDuration(buffer, duration);
+                resolve(new Blob([fixedBlob], { type: 'video/webm' }));
+            } catch (error) {
+                console.error('webmFixDuration error:', error);
+                reject(error);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+    });
+    }
+
     recordButton.onclick = () => {
       if (isRecording) {
         stopRecording();
@@ -695,10 +714,19 @@ function connectBroadcaster() {
     }
 
     // Save the recorded video
-    function saveRecording() {
+    async function saveRecording() {
       const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      
-      const url = URL.createObjectURL(blob);
+      let finalBlob = blob;
+    if (typeof webmFixDuration === 'function') {
+        try {
+            const duration = endTime - startTime;
+            finalBlob = await fixWebmDuration(blob, duration);
+        } catch (err) {
+            console.warn('Failed to fix WebM duration. Using original blob.', err);
+        }
+    }
+
+      const url = URL.createObjectURL(finalBlob);
 
       const startFormatted = formatDateTime(startTime);
       const endFormatted = formatDateTime(endTime);
