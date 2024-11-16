@@ -367,6 +367,15 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
     //     reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
     //    });
 
+    const configuration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ],
+      iceTransportPolicy: 'all',
+      bandwidth: 10000  // Increase bandwidth (in kbps)
+    };
+    
     const socketUrl = 'https://cctv-njp7.onrender.com';
     // const socketUrl = 'http://localhost:3000/'; // Replace with your server's URL
 
@@ -737,15 +746,6 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
 
       return `${year}-${month}-${day}_${hours}:${minutes}`;
     }
-
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ],
-      iceTransportPolicy: 'all',
-      bandwidth: 10000  // Increase bandwidth (in kbps)
-    };
 
     function updateStatus(message) {
       console.log(message);
