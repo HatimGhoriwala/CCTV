@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.5/fix-webm-duration.js"></script>
+  <script src="
+https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
+"></script>
   <title>CCTV Live Stream</title>
   <style>
     body {
@@ -283,7 +285,7 @@
     <div id="remoteVideoContainer"></div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
-  <script>
+  <!-- <script>
     // Add this JavaScript to disable various inspection methods
 
     // 1. Disable right-click
@@ -354,206 +356,207 @@
       e.preventDefault();
       return false;
     };
-  </script>
+  </script> -->
   <script>
 
     const welcomeMessage = document.getElementById('welcomeAlert');
-let isBroadcaster = false;
-  //  const socket = io('https://cctv-njp7.onrender.com', {
-   //   reconnection: true,            // Enable reconnection
-  //    reconnectionAttempts: 15,      // Try to reconnect up to 10 times
- //     reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
-//    });
+    let isBroadcaster = false;
+    //  const socket = io('https://cctv-njp7.onrender.com', {
+    //   reconnection: true,            // Enable reconnection
+    //    reconnectionAttempts: 15,      // Try to reconnect up to 10 times
+    //     reconnectionDelay: 1000        // Delay between reconnection attempts (1 second)
+    //    });
 
-    const socketUrl = 'https://cctv-njp7.onrender.com'; // Replace with your server's URL
+    const socketUrl = 'https://cctv-njp7.onrender.com';
+    // const socketUrl = 'http://localhost:3000/'; // Replace with your server's URL
 
-let socket;
+    let socket;
 
-function connectBroadcaster() {
-  console.log('Attempting to connect as broadcaster...');
-  socket = io(socketUrl);
+    function connectBroadcaster() {
+      console.log('Attempting to connect as broadcaster...');
+      socket = io(socketUrl);
 
-  // On successful connection
-  socket.on('connect', () => {
-    console.log('Connected to server as broadcaster!'); // Notify server that this is the broadcaster// Call the function to start broadcasting
-  });
-
-  socket.on('ping', () => {
-      console.log('Ping received from server');
-      socket.emit('pong');
-    });
-
-  socket.on('viewer', id => {
-      if (!isBroadcaster) return;
-
-      updateStatus("Viewer connecting: " + id);
-      const peerConnection = new RTCPeerConnection(configuration);
-      peerConnections[id] = peerConnection;
-
-      peerConnection.oniceconnectionstatechange = () => {
-        updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
-      };
-
-      peerConnection.onconnectionstatechange = () => {
-        updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
-      };
-
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
+      // On successful connection
+      socket.on('connect', () => {
+        console.log('Connected to server as broadcaster!'); // Notify server that this is the broadcaster// Call the function to start broadcasting
       });
 
-      peerConnection.createOffer()
-        .then(sdp => peerConnection.setLocalDescription(sdp))
-        .then(() => {
-          socket.emit('offer', id, peerConnection.localDescription);
-        })
-        .catch(err => console.error("Error creating offer:", err));
+      socket.on('ping', () => {
+        console.log('Ping received from server');
+        socket.emit('pong');
+      });
 
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('icecandidate', id, event.candidate);
-        }
-      };
-    });
+      socket.on('viewer', id => {
+        if (!isBroadcaster) return;
 
-    socket.on('offer', (id, description) => {
-      if (isBroadcaster) return;
+        updateStatus("Viewer connecting: " + id);
+        const peerConnection = new RTCPeerConnection(configuration);
+        peerConnections[id] = peerConnection;
 
-      updateStatus("Received offer from broadcaster");
-      const peerConnection = new RTCPeerConnection(configuration);
-      peerConnections[id] = peerConnection;
+        peerConnection.oniceconnectionstatechange = () => {
+          updateStatus(`ICE Connection State for ${id}: ${peerConnection.iceConnectionState}`);
+        };
 
-      peerConnection.oniceconnectionstatechange = () => {
-        updateStatus(`ICE Connection State: ${peerConnection.iceConnectionState}`);
-      };
+        peerConnection.onconnectionstatechange = () => {
+          updateStatus(`Connection State for ${id}: ${peerConnection.connectionState}`);
+        };
 
-      peerConnection.onconnectionstatechange = () => {
-        updateStatus(`Connection State: ${peerConnection.connectionState}`);
-      };
-
-      peerConnection.ontrack = event => {
-        updateStatus("Received media track: " + event.track.kind);
-
-        if (event.streams && event.streams[0]) {
-          remoteStream = event.streams[0];
-
-          let videoWrapper = document.getElementById(`video-wrapper-${id}`);
-          if (!videoWrapper) {
-            videoWrapper = document.createElement('div');
-            videoWrapper.id = `video-wrapper-${id}`;
-            videoWrapper.className = 'video-wrapper';
-
-            const videoElement = document.createElement('video');
-            videoElement.id = `remote-video-${id}`;
-            videoElement.playsInline = true;
-            videoElement.muted = false;
-            videoElement.autoplay = true; // Add autoplay
-
-            // Create a canvas for this specific video
-            const canvas = document.createElement('canvas');
-            canvas.id = `canvas-${id}`;
-            canvas.style.position = 'absolute';
-            canvas.style.top = '0';
-            canvas.style.left = '0';
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-
-            videoWrapper.appendChild(videoElement);
-            videoWrapper.appendChild(canvas);
-            remoteVideoContainer.appendChild(videoWrapper);
-
-            videoElement.srcObject = remoteStream;
-            videoElement.style.visibility = 'hidden'
-
-            // Setup timestamp drawing for this specific video/canvas pair
-            const ctx = canvas.getContext('2d');
-            setInterval(() => {
-              if (videoElement.videoWidth) {
-                canvas.width = videoElement.videoWidth;
-                canvas.height = videoElement.videoHeight;
-                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-
-                // Draw timestamp
-                const now = new Date();
-                const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-                ctx.font = '16px "Times New Roman"';
-                ctx.fillStyle = '#00FF41';
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText(timestamp, canvas.width - 10, canvas.height - 10);
-              }
-            }, 1000 / 30);
-
-            if (startButton.disabled) {
-              videoElement.play().catch(e => console.error("Error playing remote video:", e));
-            }
-          }
-        }
-      };
-
-      peerConnection.setRemoteDescription(new RTCSessionDescription(description))
-        .then(() => peerConnection.createAnswer())
-        .then(sdp => peerConnection.setLocalDescription(sdp))
-        .then(() => {
-          socket.emit('answer', id, peerConnection.localDescription);
-        })
-        .catch(err => {
-          console.error("Error handling offer:", err);
-          updateStatus("Error: " + err.message);
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
         });
 
-      peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit('icecandidate', id, event.candidate);
-        }
-      };
-    });
+        peerConnection.createOffer()
+          .then(sdp => peerConnection.setLocalDescription(sdp))
+          .then(() => {
+            socket.emit('offer', id, peerConnection.localDescription);
+          })
+          .catch(err => console.error("Error creating offer:", err));
 
-    socket.on('answer', (id, description) => {
-      if (!isBroadcaster) return;
+        peerConnection.onicecandidate = event => {
+          if (event.candidate) {
+            socket.emit('icecandidate', id, event.candidate);
+          }
+        };
+      });
 
-      const peerConnection = peerConnections[id];
-      if (peerConnection) {
+      socket.on('offer', (id, description) => {
+        if (isBroadcaster) return;
+
+        updateStatus("Received offer from broadcaster");
+        const peerConnection = new RTCPeerConnection(configuration);
+        peerConnections[id] = peerConnection;
+
+        peerConnection.oniceconnectionstatechange = () => {
+          updateStatus(`ICE Connection State: ${peerConnection.iceConnectionState}`);
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+          updateStatus(`Connection State: ${peerConnection.connectionState}`);
+        };
+
+        peerConnection.ontrack = event => {
+          updateStatus("Received media track: " + event.track.kind);
+
+          if (event.streams && event.streams[0]) {
+            remoteStream = event.streams[0];
+
+            let videoWrapper = document.getElementById(`video-wrapper-${id}`);
+            if (!videoWrapper) {
+              videoWrapper = document.createElement('div');
+              videoWrapper.id = `video-wrapper-${id}`;
+              videoWrapper.className = 'video-wrapper';
+
+              const videoElement = document.createElement('video');
+              videoElement.id = `remote-video-${id}`;
+              videoElement.playsInline = true;
+              videoElement.muted = false;
+              videoElement.autoplay = true; // Add autoplay
+
+              // Create a canvas for this specific video
+              const canvas = document.createElement('canvas');
+              canvas.id = `canvas-${id}`;
+              canvas.style.position = 'absolute';
+              canvas.style.top = '0';
+              canvas.style.left = '0';
+              canvas.style.width = '100%';
+              canvas.style.height = '100%';
+
+              videoWrapper.appendChild(videoElement);
+              videoWrapper.appendChild(canvas);
+              remoteVideoContainer.appendChild(videoWrapper);
+
+              videoElement.srcObject = remoteStream;
+              videoElement.style.visibility = 'hidden'
+
+              // Setup timestamp drawing for this specific video/canvas pair
+              const ctx = canvas.getContext('2d');
+              setInterval(() => {
+                if (videoElement.videoWidth) {
+                  canvas.width = videoElement.videoWidth;
+                  canvas.height = videoElement.videoHeight;
+                  ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                  // Draw timestamp
+                  const now = new Date();
+                  const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                  ctx.font = '16px "Times New Roman"';
+                  ctx.fillStyle = '#00FF41';
+                  ctx.textAlign = 'right';
+                  ctx.textBaseline = 'bottom';
+                  ctx.fillText(timestamp, canvas.width - 10, canvas.height - 10);
+                }
+              }, 1000 / 30);
+
+              if (startButton.disabled) {
+                videoElement.play().catch(e => console.error("Error playing remote video:", e));
+              }
+            }
+          }
+        };
+
         peerConnection.setRemoteDescription(new RTCSessionDescription(description))
+          .then(() => peerConnection.createAnswer())
+          .then(sdp => peerConnection.setLocalDescription(sdp))
+          .then(() => {
+            socket.emit('answer', id, peerConnection.localDescription);
+          })
           .catch(err => {
-            console.error("Error setting remote description:", err);
+            console.error("Error handling offer:", err);
             updateStatus("Error: " + err.message);
           });
-      }
-    });
 
-    socket.on('icecandidate', (id, candidate) => {
-      const peerConnection = peerConnections[id];
-      if (peerConnection) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-          .catch(err => {
-            console.error("Error adding ICE candidate:", err);
-            updateStatus("Error: " + err.message);
-          });
-      }
-    });
+        peerConnection.onicecandidate = event => {
+          if (event.candidate) {
+            socket.emit('icecandidate', id, event.candidate);
+          }
+        };
+      });
 
-    socket.on('disconnect', () => {
-    console.log('Disconnected from server. Reconnecting...');
-      
-      if(isBroadcaster){
-      setTimeout(startBroadcast, 2000);
-      }// Retry connection after 2 seconds
-  });
+      socket.on('answer', (id, description) => {
+        if (!isBroadcaster) return;
 
-    socket.on('disconnectPeer', id => {
-      if (peerConnections[id]) {
-        peerConnections[id].close();
-        delete peerConnections[id];
-      }
+        const peerConnection = peerConnections[id];
+        if (peerConnection) {
+          peerConnection.setRemoteDescription(new RTCSessionDescription(description))
+            .catch(err => {
+              console.error("Error setting remote description:", err);
+              updateStatus("Error: " + err.message);
+            });
+        }
+      });
 
-      const videoWrapper = document.getElementById(`video-wrapper-${id}`);
-      if (videoWrapper) {
-        videoWrapper.remove();
-      }
-      updateStatus("Peer disconnected: " + id);
-    });
-}
+      socket.on('icecandidate', (id, candidate) => {
+        const peerConnection = peerConnections[id];
+        if (peerConnection) {
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+            .catch(err => {
+              console.error("Error adding ICE candidate:", err);
+              updateStatus("Error: " + err.message);
+            });
+        }
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Disconnected from server. Reconnecting...');
+
+        if (isBroadcaster) {
+          setTimeout(startBroadcast, 2000);
+        }// Retry connection after 2 seconds
+      });
+
+      socket.on('disconnectPeer', id => {
+        if (peerConnections[id]) {
+          peerConnections[id].close();
+          delete peerConnections[id];
+        }
+
+        const videoWrapper = document.getElementById(`video-wrapper-${id}`);
+        if (videoWrapper) {
+          videoWrapper.remove();
+        }
+        updateStatus("Peer disconnected: " + id);
+      });
+    }
 
     window.onload = function () {
       welcomeMessage.style.display = 'block';
@@ -568,7 +571,7 @@ function connectBroadcaster() {
       }, 2000)
     };
 
-    
+
     const localVideo = document.getElementById('localVideo');
     const remoteVideoContainer = document.getElementById('remoteVideoContainer');
     const videoContainer = document.getElementById('video-container');
@@ -576,7 +579,7 @@ function connectBroadcaster() {
     const startButton = document.getElementById('startButton');
 
     let localStream;
-    
+
     let peerConnections = {};
     let remoteStream = null;
 
@@ -645,44 +648,44 @@ function connectBroadcaster() {
 
     // Start recording with timestamp overlay
     function startRecording() {
-    isRecording = true;
-    recordButton.textContent = 'Stop Recording';
-    recordedChunks = [];
+      isRecording = true;
+      recordButton.textContent = 'Stop Recording';
+      recordedChunks = [];
 
-    startTime = new Date();
+      startTime = new Date();
 
-    // Capture the off-screen canvas stream at 60 fps
-    const canvasStream = offscreenCanvas.captureStream(30); // 60 fps
+      // Capture the off-screen canvas stream at 60 fps
+      const canvasStream = offscreenCanvas.captureStream(30); // 60 fps
 
-    // Configure media recorder with 60 fps and a higher bitrate for better quality
-    const options = {
+      // Configure media recorder with 60 fps and a higher bitrate for better quality
+      const options = {
         mimeType: 'video/webm; codecs=vp9', // Set MIME type to WebM with VP9 codec
         videoBitsPerSecond: 8000000 // Increase bitrate for high-quality video
-    };
+      };
 
-    mediaRecorder = new MediaRecorder(canvasStream, options);
+      mediaRecorder = new MediaRecorder(canvasStream, options);
 
-    mediaRecorder.ondataavailable = event => {
+      mediaRecorder.ondataavailable = event => {
         if (event.data.size > 0) recordedChunks.push(event.data);
-    };
+      };
 
-    mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = () => {
         endTime = new Date();
         saveRecording();  // Save after stopping the recording
-    };
+      };
 
-    mediaRecorder.start(1000);
+      mediaRecorder.start(1000);
 
-    // Update the interval to match the 60fps rate
-    timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 30); // 60 fps
+      // Update the interval to match the 60fps rate
+      timestampInterval = setInterval(drawFrameWithTimestamp, 1000 / 30); // 60 fps
 
-    recordingTimer = setTimeout(() => {
+      recordingTimer = setTimeout(() => {
         stopRecording();
         setTimeout(() => {
-            startRecording();
+          startRecording();
         }, 500);
         // Start a new recording after a short delay
-    }, recordingDuration);
+      }, recordingDuration);
     }
 
     // Stop recording
@@ -696,39 +699,34 @@ function connectBroadcaster() {
 
     // Save the recorded video
     async function saveRecording() {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const buggyBlob = new Blob(recordedChunks, { type: 'video/webm' });
       const duration = endTime - startTime;
 
-      fixWebmDuration(blob, duration)
-        .then(fixedBlob => {
-            const url = URL.createObjectURL(fixedBlob);
+      try {
+        // Fix the WebM duration using ysFixWebmDuration
+        const fixedBlob = await ysFixWebmDuration(buggyBlob, duration, { logger: false });
 
-      const startFormatted = formatDateTime(startTime);
-      const endFormatted = formatDateTime(endTime);
+        // Create a downloadable link for the fixed WebM file
+        const url = URL.createObjectURL(fixedBlob);
+        const startFormatted = formatDateTime(startTime);
+        const endFormatted = formatDateTime(endTime);
 
-      const downloadLink = document.createElement('a');
-      downloadLink.href = url;
-      downloadLink.style.visibility = 'hidden'
-      downloadLink.download = `recording_${startFormatted}_to_${endFormatted}.webm`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      downloadLink.remove();
-            
-            // Cleanup
-            URL.revokeObjectURL(url);
-            console.log(`Video saved with duration: ${duration/1000} seconds`);
-        })
-        .catch(error => {
-            console.error('Error fixing video duration:', error);
-            // Fallback to saving original blob if fixing fails
-            const url = URL.createObjectURL(blob);
-            const downloadLink = document.createElement('a');
-            downloadLink.href = url;
-            downloadLink.download = 'recording_fallback.webm';
-            downloadLink.click();
-            URL.revokeObjectURL(url);
-        });
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.style.visibility = 'hidden';
+        downloadLink.download = `recording_${startFormatted}_to_${endFormatted}.webm`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
+
+        // Cleanup
+        URL.revokeObjectURL(url);
+        console.log(`Video saved with duration: ${duration / 1000} seconds`);
+      } catch (error) {
+        console.error('Error while fixing WebM duration:', error);
+      }
     }
+
 
     function formatDateTime(date) {
       const year = date.getFullYear();
@@ -762,13 +760,13 @@ function connectBroadcaster() {
     // }
 
     const constraints = {
-    video: {
-    width: { ideal: 1920 },      // Target Full HD resolution
-    height: { ideal: 1080 },
-    frameRate: { ideal: 30 },    // Target 60 FPS
-    facingMode: 'environment'           // Camera facing
-  }
-};
+      video: {
+        width: { ideal: 1920 },      // Target Full HD resolution
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 },    // Target 60 FPS
+        facingMode: 'environment'           // Camera facing
+      }
+    };
 
     async function startBroadcast() {
       connectBroadcaster()
