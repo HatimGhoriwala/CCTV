@@ -550,6 +550,12 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
 
         if (isBroadcaster) {
           setTimeout(startBroadcast, 2000);
+          if(isRecording){
+          stopRecording();
+          setTimeout(() => {
+          startRecording();
+        }, 5000);
+        }
         }// Retry connection after 2 seconds
       });
 
