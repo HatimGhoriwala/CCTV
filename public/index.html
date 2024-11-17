@@ -825,7 +825,10 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
         let timeDifference = (currentTime - time) / (1000 * 60 * 60); // Convert ms to hours
 
         if (timeDifference > 3) {
-            location.reload(true); // Force reload from the server
+            location.reload(true);
+            setTimeout(()=>{
+              startBroadcast();
+            },1500)// Force reload from the server
         }
     }
 }
