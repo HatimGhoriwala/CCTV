@@ -824,7 +824,7 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
         let currentTime = new Date().getTime(); // Get the current time in milliseconds
         let timeDifference = (currentTime - time) / (1000 * 60 * 60); // Convert ms to hours
 
-        if (timeDifference > 0) {
+        if (timeDifference > 3) {
           localStorage.setItem("reloadTriggered", "true");
           location.reload(true);
             // Force reload from the server
@@ -840,7 +840,7 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
     }, 1500); // 1.5 seconds after reload
     }
 // Set an interval to check periodically
-    setInterval(checkAndReload, 1000 * 60 * 0.5); // Check every 5 minutes
+    setInterval(checkAndReload, 1000 * 60 * 5); // Check every 5 minutes
 
     window.onbeforeunload = () => {
       if (localStream) {
