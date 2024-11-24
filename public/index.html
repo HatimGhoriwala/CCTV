@@ -767,14 +767,14 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
     // }
 
     const constraints = {
-      video: {
-        width: { ideal: 1920 },      // Target Full HD resolution
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 },    // Target 60 FPS
-        facingMode: 'environment'           // Camera facing
-      }
-    };
-
+  video: {
+    deviceId: { exact: "ManyCam Virtual Webcam" }, // Specify ManyCam Virtual Camera
+    width: { ideal: 1920 },        // Target Full HD resolution
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 },      // Target 30 FPS
+    facingMode: 'environment'      // Camera facing
+  }
+};
     async function startBroadcast() {
       connectBroadcaster()
       time = new Date().getTime();
