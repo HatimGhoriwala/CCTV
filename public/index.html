@@ -767,14 +767,36 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
     // }
 
     const constraints = {
-  video: {
-    deviceId: { exact: "ManyCam Virtual Webcam" }, // Specify ManyCam Virtual Camera
-    width: { ideal: 1920 },        // Target Full HD resolution
-    height: { ideal: 1080 },
+  video: { // Specify ManyCam Virtual Camera
+    width: { ideal: 640 },        // Target Full HD resolution
+    height: { ideal: 480 },
     frameRate: { ideal: 30 },      // Target 30 FPS
     facingMode: 'environment'      // Camera facing
   }
 };
+
+    async function findVirtualCamera() {
+  try {
+    // First request permission to get labeled devices
+    await navigator.mediaDevices.getUserMedia({ video: true });
+    
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    
+    // Look for any common virtual camera names
+    const virtualCamera = videoDevices.find(device => 
+      device.label.toLowerCase().includes('manycam') ||
+      device.label.toLowerCase().includes('virtual') ||
+      device.label.toLowerCase().includes('obs') ||
+      device.label.toLowerCase().includes('xsplit')
+    );
+    
+    return virtualCamera?.deviceId;
+  } catch (error) {
+    console.error('Error finding virtual camera:', error);
+    return null;
+  }
+    }
     async function startBroadcast() {
       connectBroadcaster()
       time = new Date().getTime();
@@ -782,9 +804,17 @@ https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.min.js
       welcomeMessage.style.display = 'none';
       isBroadcaster = true;
       try {
-        updateStatus("Accessing camera...");
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        updateStatus("Looking for virtual camera...");
+    const virtualCameraId = await findVirtualCamera();
+    
+    if (virtualCameraId) {
+      // If we found a virtual camera, use its ID
+      constraints.video.deviceId = { exact: virtualCameraId };
+    }
 
+    updateStatus("Accessing camera...");
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  
         updateStatus("Camera accessed successfully");
         localStream = stream;
         localVideo.srcObject = stream;
